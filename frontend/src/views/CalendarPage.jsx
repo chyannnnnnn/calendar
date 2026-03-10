@@ -53,6 +53,7 @@ export default function CalendarPage() {
   const [conflict, setConflict] = useState(null)
   const [saving,   setSaving]   = useState(false)
   const [selectedEvent, setSelectedEvent] = useState(null)
+  const [editForm, setEditForm] = useState(null) // null = view mode, object = edit mode
 
   const weekDates  = getWeekDates(navDate)
   const monthDates = getMonthDates(navDate)
@@ -81,6 +82,45 @@ export default function CalendarPage() {
   function eventLabel(ev) {
     if (ev.is_private && ownerOf(ev) === 'partner') return '🔒 Busy'
     return ev.title
+  }
+
+  function canEdit(ev) {
+    return ownerOf(ev) === 'you' || ev.event_type === 'ours'
+  }
+
+  function openEdit(ev) {
+    setEditForm({
+      title:     ev.title?.replace(/^💑\s?/, '') || '',
+      date:      ev.date || '',
+      startTime: ev.start_time || '',
+      endTime:   ev.end_time || '',
+      location:  ev.location || '',
+      notes:     ev.notes || '',
+      isPrivate: ev.is_private || false,
+    })
+  }
+
+  async function handleSaveEdit() {
+    if (!editForm.title || !editForm.date || !editForm.startTime || !editForm.endTime) return
+    setSaving(true)
+    const isOurs = selectedEvent.event_type === 'ours' || selectedEvent.title?.startsWith('💑')
+    await updateEvent(selectedEvent.id, {
+      title:      isOurs ? `💑 ${editForm.title}` : editForm.title,
+      date:       editForm.date,
+      start_time: editForm.startTime,
+      end_time:   editForm.endTime,
+      location:   editForm.location,
+      notes:      editForm.notes,
+      is_private: editForm.isPrivate,
+    })
+    setSelectedEvent(null)
+    setEditForm(null)
+    setSaving(false)
+  }
+
+  function closeModal() {
+    setSelectedEvent(null)
+    setEditForm(null)
   }
 
   function canDelete(ev) {
@@ -267,7 +307,7 @@ export default function CalendarPage() {
                       }}>
                         <div style={{fontSize:12,fontFamily:"'Playfair Display'",color:isToday?'#6EE7B7':'#F0EDE8',marginBottom:3}}>{date.getDate()}</div>
                         {dayEvs.slice(0,2).map(ev=>(
-                          <div key={ev.id} style={{
+                          <div key={ev.id} onClick={e=>{e.stopPropagation();setSelectedEvent(ev)}} style={{
                             background:eventColor(ev)+'22',
                             borderLeft:`2px solid ${eventColor(ev)}`,
                             borderRadius:3,padding:'1px 4px',marginBottom:2,
