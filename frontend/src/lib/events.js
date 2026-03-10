@@ -1,12 +1,16 @@
-import { v4 as uuid } from 'https://cdn.jsdelivr.net/npm/uuid@9/+esm'
 import { db } from './db'
 import { supabase } from './supabase'
 import { flushQueue } from './sync'
 
+function generateId() {
+  // crypto.randomUUID() is available in all modern browsers and Node 14.17+
+  return crypto.randomUUID()
+}
+
 // ─── Add event ───────────────────────────────────────────────────────────────
 export async function addEvent({ title, date, startTime, endTime, isPrivate, ownerId }) {
   const event = {
-    id:           uuid(),
+    id:           generateId(),
     owner_id:     ownerId,
     title,
     date,
