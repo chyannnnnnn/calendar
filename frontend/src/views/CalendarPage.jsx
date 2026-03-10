@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { useCalendar } from '../hooks/useCalendar'
 
@@ -37,7 +38,8 @@ const USER_COLORS = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function CalendarPage() {
-  const { user, partner, signOut, createInviteLink, isLinked } = useAuth()
+  const { user, partner, signOut, isLinked } = useAuth()
+  const navigate = useNavigate()
   const { events, eventsForDate, findFreeSlots, createEvent, removeEvent, syncStatus } = useCalendar()
 
   const today    = new Date()
@@ -48,7 +50,6 @@ export default function CalendarPage() {
   const [tab,      setTab]      = useState('calendar')
   const [addForm,  setAddForm]  = useState({ title:'', date:'', startTime:'', endTime:'', isPrivate:false })
   const [conflict, setConflict] = useState(null)
-  const [inviteUrl,setInviteUrl]= useState('')
   const [saving,   setSaving]   = useState(false)
 
   const weekDates  = getWeekDates(navDate)
@@ -102,11 +103,6 @@ export default function CalendarPage() {
     setTab('calendar')
   }
 
-  async function handleInvite() {
-    const url = await createInviteLink()
-    setInviteUrl(url)
-  }
-
   // Nav label
   let navLabel = ''
   if (calView==='day')  navLabel = `${DAYS[navDate.getDay()]}, ${MONTHS[navDate.getMonth()]} ${navDate.getDate()}`
@@ -156,10 +152,7 @@ export default function CalendarPage() {
       {!isLinked && (
         <div style={{margin:'12px 24px 0',background:'#1A1A20',border:'1px solid #2A2A28',borderRadius:10,padding:'10px 14px',fontSize:12,color:'#888',display:'flex',alignItems:'center',gap:10}}>
           <span>👋 Connect with your partner to see shared availability.</span>
-          {!inviteUrl
-            ? <button onClick={handleInvite} style={{background:'#6EE7B7',color:'#0F0F13',border:'none',borderRadius:20,padding:'4px 12px',fontSize:11,fontWeight:600,cursor:'pointer'}}>Generate invite link</button>
-            : <span style={{color:'#6EE7B7',cursor:'pointer'}} onClick={()=>navigator.clipboard.writeText(inviteUrl)}>📋 {inviteUrl.slice(0,40)}…</span>
-          }
+          <button onClick={() => navigate('/connect')} style={{background:'#6EE7B7',color:'#0F0F13',border:'none',borderRadius:20,padding:'4px 12px',fontSize:11,fontWeight:600,cursor:'pointer'}}>Connect now</button>
         </div>
       )}
 

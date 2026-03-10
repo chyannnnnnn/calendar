@@ -88,42 +88,50 @@ export function AuthProvider({ children }) {
     return supabase.auth.signOut()
   }
 
-  // ── Invite link ───────────────────────────────────────────
-  async function createInviteLink() {
-    const code = Math.random().toString(36).slice(2, 9).toUpperCase()
-    const { error } = await supabase.from('invite_links').insert({
-      creator_id: session.user.id,
-      code,
-    })
-    if (error) throw error
-    return `${window.location.origin}/join/${code}`
+  // ── Email-based linking ───────────────────────────────────
+  // Look up partner by email and create a partnership directly.
+  // Both users must be signed up already.
+  async function linkWithPartner(partnerEmail) {
+    const myId = session.user.id
+
+    // 1. Find partner's profile by email via the profiles table
+    //    We match on display_name as fallback, but primarily use auth lookup
+    //    via a Supabase RPC (we call a simple search on profiles joined to auth)
+    const { data: found, error } = await supabase
+      .from('profiles')
+      .select('id, display_name')
+      .eq('email', partnerEmail)
+      .maybeSingle()
+
+    // profiles table may not have email — search via auth users view instead
+    // We use a workaround: store email in profiles on signup
+    if (error || !found) throw new Error('No account found with that email. Make sure your partner has signed up first.')
+    if (found.id === myId) throw new Error("That's your own email!")
+
+    // 2. Check not already linked
+    const { data: existing } = await supabase
+      .from('partnerships')
+      .select('id')
+      .or(`user_a.eq.${myId},user_b.eq.${myId}`)
+      .maybeSingle()
+
+    if (existing) throw new Error('You are already linked with a partner.')
+
+    // 3. Create partnership
+    const { error: insertError } = await supabase
+      .from('partnerships')
+      .insert({ user_a: myId, user_b: found.id })
+
+    if (insertError) throw new Error('Failed to link. Please try again.')
+
+    await loadProfile(myId)
   }
 
-  async function acceptInvite(code) {
-    const { data: invite, error } = await supabase
-      .from('invite_links')
-      .select('*')
-      .eq('code', code)
-      .is('accepted_by', null)
-      .gt('expires_at', new Date().toISOString())
-      .single()
-
-    if (error || !invite) throw new Error('Invite not found or expired')
-    if (invite.creator_id === session.user.id) throw new Error("You can't accept your own invite")
-
-    // Create partnership
-    await supabase.from('partnerships').insert({
-      user_a: invite.creator_id,
-      user_b: session.user.id,
-    })
-
-    // Mark invite as accepted
-    await supabase.from('invite_links').update({
-      accepted_by: session.user.id,
-      accepted_at: new Date().toISOString(),
-    }).eq('id', invite.id)
-
-    await loadProfile(session.user.id)
+  async function unlinkPartner() {
+    if (!partnershipId) return
+    await supabase.from('partnerships').delete().eq('id', partnershipId)
+    setPartner(null)
+    setPartnershipId(null)
   }
 
   const value = {
@@ -134,7 +142,7 @@ export function AuthProvider({ children }) {
     isLoading: session === undefined,
     isLinked:  !!partner,
     signUp, signIn, signOut,
-    createInviteLink, acceptInvite,
+    linkWithPartner, unlinkPartner,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

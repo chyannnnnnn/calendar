@@ -18,7 +18,6 @@ export default function App() {
         <Routes>
           <Route path="/login"    element={<LoginPage />} />
           <Route path="/connect"  element={<ProtectedRoute><ConnectPage /></ProtectedRoute>} />
-          <Route path="/join/:code" element={<ProtectedRoute><ConnectPage /></ProtectedRoute>} />
           <Route path="/*"        element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
         </Routes>
       </BrowserRouter>
