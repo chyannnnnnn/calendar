@@ -74,7 +74,7 @@ export default function CalendarPage() {
 
   function eventColor(ev) {
     if (ev.event_type === 'ours' || ev.title?.startsWith('💑')) return USER_COLORS.ours.color
-    return eventColor(ev)
+    return USER_COLORS[ownerOf(ev)].color
   }
 
   function eventLabel(ev) {
