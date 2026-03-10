@@ -1,57 +1,160 @@
--- ─────────────────────────────────────────────
---  us.cal  —  Supabase Schema
---  Run this in: Supabase Dashboard → SQL Editor
--- ─────────────────────────────────────────────
+-- ═══════════════════════════════════════════════════════════
+--  us.cal — Complete Supabase Schema
+--  Safe to re-run at any time (fully idempotent)
+--  Supabase Dashboard → SQL Editor → paste → Run
+-- ═══════════════════════════════════════════════════════════
 
--- 1. PARTNERSHIPS
---    Links two users together as a "couple" / shared pair.
+
+-- ─── 0. CLEAN UP (drop everything first so re-runs never fail) ───────────────
+
+drop policy if exists "Authenticated users can read profiles" on profiles;
+drop policy if exists "Users can update own profile"          on profiles;
+drop policy if exists "Owner full access"                     on events;
+drop policy if exists "Partner can read events"               on events;
+drop policy if exists "Members can read their partnership"    on partnerships;
+drop policy if exists "Members can insert partnership"        on partnerships;
+drop policy if exists "Members can delete their partnership"  on partnerships;
+drop policy if exists "Creator manages invite"                on invite_links;
+drop policy if exists "Anyone can read invite to accept"      on invite_links;
+
+-- Remove events from realtime publication safely before re-adding
+do $$
+begin
+  if exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and tablename = 'events'
+  ) then
+    alter publication supabase_realtime drop table events;
+  end if;
+end $$;
+
+-- Drop trigger so we can recreate cleanly
+drop trigger if exists on_auth_user_created on auth.users;
+
+
+-- ─── 1. TABLES ───────────────────────────────────────────────────────────────
+
+-- PROFILES
+-- One row per user. Auto-created on signup via trigger below.
+-- Stores display_name + email so partners can find each other by email.
+create table if not exists profiles (
+  id           uuid primary key references auth.users(id) on delete cascade,
+  display_name text not null default '',
+  email        text not null default '',
+  updated_at   timestamptz default now()
+);
+
+-- Safe to run even if column already exists
+alter table profiles add column if not exists email text not null default '';
+
+-- Add event_type for existing databases
+alter table events add column if not exists event_type text not null default 'mine';
+
+-- PARTNERSHIPS
+-- A single row links two users as a pair.
+-- Either user can insert (to create the link) or delete (to unlink).
 create table if not exists partnerships (
   id          uuid primary key default gen_random_uuid(),
-  user_a      uuid references auth.users(id) on delete cascade,
-  user_b      uuid references auth.users(id) on delete cascade,
+  user_a      uuid not null references auth.users(id) on delete cascade,
+  user_b      uuid not null references auth.users(id) on delete cascade,
   created_at  timestamptz default now(),
   unique(user_a, user_b)
 );
 
--- 2. EVENTS
+-- EVENTS
 create table if not exists events (
-  id            uuid primary key default gen_random_uuid(),
-  owner_id      uuid references auth.users(id) on delete cascade not null,
-  title         text not null,
-  date          date not null,                  -- e.g. 2026-03-15
-  start_time    time not null,                  -- e.g. 09:00
-  end_time      time not null,
-  is_private    boolean default false,          -- partner sees "Busy" only
-  is_recurring  boolean default false,
-  recur_rule    text,                           -- 'weekly' | 'daily' etc (future)
-  updated_at    timestamptz default now(),
-  created_at    timestamptz default now()
+  id           uuid primary key default gen_random_uuid(),
+  owner_id     uuid not null references auth.users(id) on delete cascade,
+  title        text not null,
+  date         date not null,
+  start_time   time not null,
+  end_time     time not null,
+  is_private   boolean default false,
+  event_type   text default 'mine',     -- 'mine' (personal) | 'ours' (shared date)
+  is_recurring boolean default false,
+  recur_rule   text,
+  updated_at   timestamptz default now(),
+  created_at   timestamptz default now()
 );
 
--- 3. INVITE LINKS
---    User A creates a link, User B clicks it → partnership formed.
+-- INVITE LINKS (kept for future use)
 create table if not exists invite_links (
   id          uuid primary key default gen_random_uuid(),
   creator_id  uuid references auth.users(id) on delete cascade,
-  code        text unique not null,             -- short random code in URL
+  code        text unique not null,
   accepted_by uuid references auth.users(id),
   accepted_at timestamptz,
   expires_at  timestamptz default (now() + interval '7 days'),
   created_at  timestamptz default now()
 );
 
--- ─── Row Level Security ───────────────────────────────────
 
-alter table events enable row level security;
-alter table partnerships enable row level security;
-alter table invite_links enable row level security;
+-- ─── 2. AUTO-PROFILE TRIGGER ─────────────────────────────────────────────────
+-- Fires on every new signup and inserts a profiles row automatically.
 
--- Events: owner can do anything
+create or replace function handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id, display_name, email)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1)),
+    new.email
+  )
+  on conflict (id) do update set
+    display_name = coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1)),
+    email        = new.email,
+    updated_at   = now();
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure handle_new_user();
+
+
+-- ─── 3. BACKFILL EXISTING USERS ──────────────────────────────────────────────
+-- Inserts profile rows for any accounts created before this trigger existed.
+-- Safe to run multiple times — uses ON CONFLICT DO UPDATE.
+
+insert into profiles (id, display_name, email)
+select
+  id,
+  coalesce(raw_user_meta_data->>'display_name', split_part(email, '@', 1)),
+  email
+from auth.users
+on conflict (id) do update set
+  display_name = excluded.display_name,
+  email        = excluded.email,
+  updated_at   = now();
+
+
+-- ─── 4. ROW LEVEL SECURITY ───────────────────────────────────────────────────
+
+alter table profiles      enable row level security;
+alter table partnerships  enable row level security;
+alter table events        enable row level security;
+alter table invite_links  enable row level security;
+
+-- PROFILES
+-- Any signed-in user can read profiles (needed to find partner by email)
+create policy "Authenticated users can read profiles"
+  on profiles for select
+  using (auth.role() = 'authenticated');
+
+-- Only the owner can update their own profile
+create policy "Users can update own profile"
+  on profiles for update
+  using (auth.uid() = id);
+
+-- EVENTS
+-- Owner has full insert / update / delete access to their own events
 create policy "Owner full access"
   on events for all
   using (auth.uid() = owner_id);
 
--- Events: partner can read (even private ones show as busy — handled in app)
+-- Partner can read events (app handles showing "Busy" for private ones)
 create policy "Partner can read events"
   on events for select
   using (
@@ -62,12 +165,23 @@ create policy "Partner can read events"
     )
   );
 
--- Partnerships: both members can read
+-- PARTNERSHIPS
+-- Either member can read their shared partnership row
 create policy "Members can read their partnership"
   on partnerships for select
   using (auth.uid() = user_a or auth.uid() = user_b);
 
--- Invite links: creator can manage, anyone can read to accept
+-- Either member can create a partnership (email-based linking)
+create policy "Members can insert partnership"
+  on partnerships for insert
+  with check (auth.uid() = user_a or auth.uid() = user_b);
+
+-- Either member can delete (unlink) the partnership
+create policy "Members can delete their partnership"
+  on partnerships for delete
+  using (auth.uid() = user_a or auth.uid() = user_b);
+
+-- INVITE LINKS
 create policy "Creator manages invite"
   on invite_links for all
   using (auth.uid() = creator_id);
@@ -76,6 +190,8 @@ create policy "Anyone can read invite to accept"
   on invite_links for select
   using (true);
 
--- ─── Realtime ─────────────────────────────────────────────
--- Enable realtime so partner's events appear live
+
+-- ─── 5. REALTIME ─────────────────────────────────────────────────────────────
+-- Pushes event changes live to all connected clients
+
 alter publication supabase_realtime add table events;

@@ -34,6 +34,7 @@ const HOUR_ROWS = Array.from({length:16},(_,i)=>i+7)
 const USER_COLORS = {
   you:     { color:'#6EE7B7' },
   partner: { color:'#FCA5A5' },
+  ours:    { color:'#C4B5FD' },  // soft purple for shared events
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -48,7 +49,7 @@ export default function CalendarPage() {
   const [calView,  setCalView]  = useState('week')
   const [navDate,  setNavDate]  = useState(new Date())
   const [tab,      setTab]      = useState('calendar')
-  const [addForm,  setAddForm]  = useState({ title:'', date:'', startTime:'', endTime:'', isPrivate:false, recurring:'none', recurUntil:'' })
+  const [addForm,  setAddForm]  = useState({ title:'', date:'', startTime:'', endTime:'', isPrivate:false, recurring:'none', recurUntil:'', eventType:'mine' })
   const [conflict, setConflict] = useState(null)
   const [saving,   setSaving]   = useState(false)
 
@@ -71,6 +72,11 @@ export default function CalendarPage() {
     return ev.owner_id === user.id ? 'you' : 'partner'
   }
 
+  function eventColor(ev) {
+    if (ev.event_type === 'ours' || ev.title?.startsWith('💑')) return USER_COLORS.ours.color
+    return eventColor(ev)
+  }
+
   function eventLabel(ev) {
     if (ev.is_private && ownerOf(ev) === 'partner') return '🔒 Busy'
     return ev.title
@@ -78,13 +84,15 @@ export default function CalendarPage() {
 
   async function handleAdd() {
     if (!addForm.title||!addForm.date||!addForm.startTime||!addForm.endTime) return
-    // Check for conflict with partner's events
-    const clash = events.find(e =>
-      ownerOf(e)==='partner' && e.date===addForm.date &&
-      timeToMins(e.start_time)<timeToMins(addForm.endTime) &&
-      timeToMins(e.end_time)>timeToMins(addForm.startTime)
-    )
-    if (clash) { setConflict({ form:addForm, clash }); return }
+    // Only check for partner conflict when creating a shared "ours" event
+    if (addForm.eventType === 'ours') {
+      const clash = events.find(e =>
+        ownerOf(e)==='partner' && e.date===addForm.date &&
+        timeToMins(e.start_time)<timeToMins(addForm.endTime) &&
+        timeToMins(e.end_time)>timeToMins(addForm.startTime)
+      )
+      if (clash) { setConflict({ form:addForm, clash }); return }
+    }
     await commitAdd()
   }
 
@@ -93,14 +101,15 @@ export default function CalendarPage() {
     const dates = getRecurringDates(addForm.date, addForm.recurring, addForm.recurUntil)
     for (const date of dates) {
       await createEvent({
-        title:     addForm.title,
+        title:     addForm.eventType === 'ours' ? `💑 ${addForm.title}` : addForm.title,
         date,
         startTime: addForm.startTime,
         endTime:   addForm.endTime,
         isPrivate: addForm.isPrivate,
+        eventType: addForm.eventType,
       })
     }
-    setAddForm({title:'',date:'',startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:''})
+    setAddForm({title:'',date:'',startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:'',eventType:'mine'})
     setConflict(null)
     setSaving(false)
     setTab('calendar')
@@ -245,10 +254,10 @@ export default function CalendarPage() {
                         <div style={{fontSize:12,fontFamily:"'Playfair Display'",color:isToday?'#6EE7B7':'#F0EDE8',marginBottom:3}}>{date.getDate()}</div>
                         {dayEvs.slice(0,2).map(ev=>(
                           <div key={ev.id} style={{
-                            background:USER_COLORS[ownerOf(ev)].color+'22',
-                            borderLeft:`2px solid ${USER_COLORS[ownerOf(ev)].color}`,
+                            background:eventColor(ev)+'22',
+                            borderLeft:`2px solid ${eventColor(ev)}`,
                             borderRadius:3,padding:'1px 4px',marginBottom:2,
-                            fontSize:9,color:USER_COLORS[ownerOf(ev)].color,
+                            fontSize:9,color:eventColor(ev),
                             whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',
                           }}>{eventLabel(ev)}</div>
                         ))}
@@ -274,10 +283,10 @@ export default function CalendarPage() {
                       <div onClick={()=>goToDay(date)} style={{fontSize:19,fontFamily:"'Playfair Display'",color:isToday?'#6EE7B7':'#F0EDE8',marginBottom:7,cursor:'pointer'}}>{date.getDate()}</div>
                       {dayEvs.map(ev=>(
                         <div key={ev.id} style={{
-                          background:USER_COLORS[ownerOf(ev)].color+'22',
-                          borderLeft:`2px solid ${USER_COLORS[ownerOf(ev)].color}`,
+                          background:eventColor(ev)+'22',
+                          borderLeft:`2px solid ${eventColor(ev)}`,
                           borderRadius:4,padding:'2px 5px',marginBottom:2,
-                          fontSize:9,color:USER_COLORS[ownerOf(ev)].color,
+                          fontSize:9,color:eventColor(ev),
                           display:'flex',justifyContent:'space-between',alignItems:'center',
                         }}>
                           <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:60}}>{eventLabel(ev)}</span>
@@ -326,9 +335,9 @@ export default function CalendarPage() {
                           {isFree&&<div style={{position:'absolute',right:8,top:5,fontSize:8,color:'#6EE7B7',opacity:0.5}}>✦ both free</div>}
                           {hourEvs.map(ev=>(
                             <div key={ev.id} style={{
-                              background:USER_COLORS[ownerOf(ev)].color+'22',
-                              borderLeft:`3px solid ${USER_COLORS[ownerOf(ev)].color}`,
-                              borderRadius:5,padding:'3px 7px',fontSize:10,color:USER_COLORS[ownerOf(ev)].color,
+                              background:eventColor(ev)+'22',
+                              borderLeft:`3px solid ${eventColor(ev)}`,
+                              borderRadius:5,padding:'3px 7px',fontSize:10,color:eventColor(ev),
                               display:'flex',flexDirection:'column',gap:1,minWidth:90,
                             }}>
                               <span style={{fontWeight:500}}>{eventLabel(ev)}</span>
@@ -386,7 +395,35 @@ export default function CalendarPage() {
         {tab==='add' && (
           <div style={{maxWidth:370}}>
             <div style={{fontFamily:"'Playfair Display'",fontSize:19,marginBottom:16}}>New Event</div>
-            {[['Title','text','title','e.g. Dinner date'],['Date','date','date',''],['Start time','time','startTime',''],['End time','time','endTime','']].map(([label,type,field,ph])=>(
+
+            {/* Event type — most important choice, show first */}
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:6}}>This event is</label>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                <button onClick={()=>setAddForm(f=>({...f,eventType:'mine',isPrivate:false}))} style={{
+                  background: addForm.eventType==='mine' ? '#6EE7B722' : '#1A1A20',
+                  border: `1px solid ${addForm.eventType==='mine' ? '#6EE7B7' : '#2A2A35'}`,
+                  color: addForm.eventType==='mine' ? '#6EE7B7' : '#555',
+                  borderRadius:10, padding:'10px 8px', cursor:'pointer', textAlign:'left',
+                }}>
+                  <div style={{fontSize:16,marginBottom:3}}>👤</div>
+                  <div style={{fontSize:12,fontWeight:600}}>Just me</div>
+                  <div style={{fontSize:10,opacity:0.6,marginTop:2}}>Personal — no conflict check</div>
+                </button>
+                <button onClick={()=>setAddForm(f=>({...f,eventType:'ours',isPrivate:false}))} style={{
+                  background: addForm.eventType==='ours' ? '#C4B5FD22' : '#1A1A20',
+                  border: `1px solid ${addForm.eventType==='ours' ? '#C4B5FD' : '#2A2A35'}`,
+                  color: addForm.eventType==='ours' ? '#C4B5FD' : '#555',
+                  borderRadius:10, padding:'10px 8px', cursor:'pointer', textAlign:'left',
+                }}>
+                  <div style={{fontSize:16,marginBottom:3}}>💑</div>
+                  <div style={{fontSize:12,fontWeight:600}}>For us</div>
+                  <div style={{fontSize:10,opacity:0.6,marginTop:2}}>Warns if partner is busy</div>
+                </button>
+              </div>
+            </div>
+
+            {[['Title','text','title', addForm.eventType==='ours' ? 'e.g. Dinner date' : 'e.g. Gym'],['Date','date','date',''],['Start time','time','startTime',''],['End time','time','endTime','']].map(([label,type,field,ph])=>(
               <div key={field} style={{marginBottom:11}}>
                 <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>{label}</label>
                 <input type={type} placeholder={ph} value={addForm[field]} onChange={e=>setAddForm(f=>({...f,[field]:e.target.value}))} style={inp}/>
@@ -403,17 +440,15 @@ export default function CalendarPage() {
                     border: `1px solid ${addForm.recurring===val ? '#6EE7B7' : '#2A2A35'}`,
                     color: addForm.recurring===val ? '#6EE7B7' : '#666',
                     borderRadius:7, padding:'7px 4px', fontSize:11, cursor:'pointer',
-                    gridColumn: val==='monthly' ? 'span 1' : 'auto',
                   }}>{label}</button>
                 ))}
               </div>
             </div>
 
-            {/* Until date — only show when recurring */}
             {addForm.recurring !== 'none' && (
               <div style={{marginBottom:11,background:'#1A1A20',borderRadius:8,padding:'10px 12px',border:'1px solid #2A2A35'}}>
                 <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:6}}>Repeat until</label>
-                <input type="date" value={addForm.recurUntil} onChange={e=>setAddForm(f=>({...f,recurUntil:e.target.value}))} style={{...inp, marginBottom:0, background:'transparent', border:'none', padding:'0'}}/>
+                <input type="date" value={addForm.recurUntil} onChange={e=>setAddForm(f=>({...f,recurUntil:e.target.value}))} style={{...inp,marginBottom:0,background:'transparent',border:'none',padding:'0'}}/>
                 {addForm.date && addForm.recurUntil && (
                   <div style={{fontSize:10,color:'#6EE7B7',marginTop:6}}>
                     → {getRecurringDates(addForm.date, addForm.recurring, addForm.recurUntil).length} events will be created
@@ -422,14 +457,24 @@ export default function CalendarPage() {
               </div>
             )}
 
-            <label style={{display:'flex',alignItems:'center',gap:7,marginBottom:16,cursor:'pointer',fontSize:12,color:'#666'}}>
-              <input type="checkbox" checked={addForm.isPrivate} onChange={e=>setAddForm(f=>({...f,isPrivate:e.target.checked}))} style={{accentColor:'#6EE7B7'}}/>
-              Keep details private (partner sees "Busy")
-            </label>
-            <button onClick={handleAdd} disabled={saving} style={{width:'100%',background:'#6EE7B7',color:'#0F0F13',border:'none',borderRadius:9,padding:12,fontSize:14,fontWeight:600,cursor:'pointer',opacity:saving?0.6:1}}>
+            {/* Private toggle — only for personal events */}
+            {addForm.eventType === 'mine' && (
+              <label style={{display:'flex',alignItems:'center',gap:7,marginBottom:16,cursor:'pointer',fontSize:12,color:'#666'}}>
+                <input type="checkbox" checked={addForm.isPrivate} onChange={e=>setAddForm(f=>({...f,isPrivate:e.target.checked}))} style={{accentColor:'#6EE7B7'}}/>
+                Keep details private (partner sees "Busy")
+              </label>
+            )}
+
+            <button onClick={handleAdd} disabled={saving} style={{
+              width:'100%',
+              background: addForm.eventType==='ours' ? '#C4B5FD' : '#6EE7B7',
+              color:'#0F0F13', border:'none', borderRadius:9, padding:12,
+              fontSize:14, fontWeight:600, cursor:'pointer',
+              opacity:saving?0.6:1,
+            }}>
               {saving ? 'Saving…' : addForm.recurring !== 'none' && addForm.recurUntil
                 ? `Create ${getRecurringDates(addForm.date,addForm.recurring,addForm.recurUntil).length} events`
-                : 'Add Event'}
+                : addForm.eventType==='ours' ? '💑 Add shared event' : 'Add Event'}
             </button>
           </div>
         )}
