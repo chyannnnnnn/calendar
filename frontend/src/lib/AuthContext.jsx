@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { clearPartnerEvents, clearLocalDB } from '../lib/sync'
 
 const AuthContext = createContext(null)
 
@@ -85,6 +86,7 @@ export function AuthProvider({ children }) {
   }
 
   async function signOut() {
+    await clearLocalDB()
     return supabase.auth.signOut()
   }
 
@@ -130,6 +132,8 @@ export function AuthProvider({ children }) {
   async function unlinkPartner() {
     if (!partnershipId) return
     await supabase.from('partnerships').delete().eq('id', partnershipId)
+    // Immediately wipe partner's events from local Dexie DB
+    if (partner?.id) await clearPartnerEvents(partner.id)
     setPartner(null)
     setPartnershipId(null)
   }

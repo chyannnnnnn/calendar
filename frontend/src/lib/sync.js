@@ -79,7 +79,24 @@ export function subscribeToPartnerEvents(partnerId, onUpdate) {
     .subscribe()
 }
 
-// ─── Online/offline watcher ──────────────────────────────────────────────────
+// ─── Clear partner events from local DB ──────────────────────────────────────
+// Called when unlinking — removes partner's events from Dexie so they
+// don't show up stale after the partnership is removed.
+export async function clearPartnerEvents(partnerId) {
+  const partnerEvents = await db.events
+    .where('owner_id').equals(partnerId)
+    .toArray()
+  const ids = partnerEvents.map(e => e.id)
+  if (ids.length) await db.events.bulkDelete(ids)
+}
+
+// ─── Clear entire local DB ────────────────────────────────────────────────────
+// Called on sign out so the next user starts fresh.
+export async function clearLocalDB() {
+  await db.events.clear()
+  await db.syncQueue.clear()
+  await db.profiles.clear()
+}
 // Automatically flush queue when browser comes back online.
 export function watchConnectivity(onStatusChange) {
   const handleOnline = async () => {
