@@ -504,72 +504,129 @@ export default function CalendarPage() {
           </div>
         )}
 
-        {/* ── Event detail modal ── */}
+        {/* ── Event detail / edit modal ── */}
         {selectedEvent && (() => {
           const ev = selectedEvent
           const color = eventColor(ev)
           const isOurs = ev.event_type === 'ours' || ev.title?.startsWith('💑')
           const isPrivatePartner = ev.is_private && ownerOf(ev) === 'partner'
+          const editing = editForm !== null
+          const minp = { width:'100%',background:'#0F0F13',border:'1px solid #2A2A35',borderRadius:7,padding:'8px 10px',color:'#F0EDE8',fontSize:13,outline:'none',boxSizing:'border-box',colorScheme:'dark' }
+
           return (
-            <div onClick={()=>setSelectedEvent(null)} style={{position:'fixed',inset:0,background:'#000B',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200,padding:20}}>
+            <div onClick={closeModal} style={{position:'fixed',inset:0,background:'#000B',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200,padding:20}}>
               <div onClick={e=>e.stopPropagation()} style={{
                 background:'#13131A',border:`1px solid ${color}44`,
-                borderRadius:16,padding:24,maxWidth:360,width:'100%',
+                borderRadius:16,padding:24,maxWidth:370,width:'100%',
+                maxHeight:'90vh',overflowY:'auto',
               }}>
-                {/* Header */}
+
+                {/* ── Modal header ── */}
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
-                  <div>
+                  <div style={{flex:1,minWidth:0}}>
                     <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:4}}>
                       <div style={{width:8,height:8,borderRadius:'50%',background:color,flexShrink:0}}/>
                       <span style={{fontSize:10,color:color,textTransform:'uppercase',letterSpacing:'0.05em'}}>
                         {isOurs ? '💑 For us' : ownerOf(ev)==='you' ? user?.name||'You' : partner?.name||'Partner'}
                       </span>
+                      {isOurs && <span style={{fontSize:9,color:'#555',marginLeft:2}}>— editable by both</span>}
                     </div>
-                    <div style={{fontFamily:"'Playfair Display'",fontSize:20,color:'#F0EDE8',lineHeight:1.2}}>
-                      {isPrivatePartner ? '🔒 Busy' : ev.title}
-                    </div>
+                    {!editing && (
+                      <div style={{fontFamily:"'Playfair Display'",fontSize:20,color:'#F0EDE8',lineHeight:1.2,wordBreak:'break-word'}}>
+                        {isPrivatePartner ? '🔒 Busy' : ev.title?.replace(/^💑\s?/,'')}
+                      </div>
+                    )}
                   </div>
-                  <button onClick={()=>setSelectedEvent(null)} style={{background:'none',border:'none',color:'#444',fontSize:18,cursor:'pointer',padding:'0 4px'}}>✕</button>
+                  <div style={{display:'flex',gap:6,marginLeft:10,flexShrink:0}}>
+                    {canEdit(ev) && !isPrivatePartner && !editing && (
+                      <button onClick={()=>openEdit(ev)} style={{background:'#2A2A35',border:'none',color:'#aaa',fontSize:12,cursor:'pointer',borderRadius:7,padding:'5px 10px'}}>✏️ Edit</button>
+                    )}
+                    <button onClick={closeModal} style={{background:'none',border:'none',color:'#444',fontSize:18,cursor:'pointer',padding:'0 4px'}}>✕</button>
+                  </div>
                 </div>
 
-                {/* Details */}
-                <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10,fontSize:13,color:'#888'}}>
-                    <span style={{fontSize:16}}>📅</span>
-                    <span>{DAYS[new Date(ev.date+'T00:00').getDay()]}, {MONTHS[new Date(ev.date+'T00:00').getMonth()]} {new Date(ev.date+'T00:00').getDate()}</span>
-                  </div>
-                  <div style={{display:'flex',alignItems:'center',gap:10,fontSize:13,color:'#888'}}>
-                    <span style={{fontSize:16}}>🕐</span>
-                    <span>{ev.start_time} – {ev.end_time}</span>
-                  </div>
-                  {!isPrivatePartner && ev.location && (
+                {/* ── VIEW MODE ── */}
+                {!editing && (
+                  <div style={{display:'flex',flexDirection:'column',gap:10}}>
                     <div style={{display:'flex',alignItems:'center',gap:10,fontSize:13,color:'#888'}}>
-                      <span style={{fontSize:16}}>📍</span>
-                      <span>{ev.location}</span>
+                      <span style={{fontSize:16}}>📅</span>
+                      <span>{DAYS[new Date(ev.date+'T00:00').getDay()]}, {MONTHS[new Date(ev.date+'T00:00').getMonth()]} {new Date(ev.date+'T00:00').getDate()}</span>
                     </div>
-                  )}
-                  {!isPrivatePartner && ev.notes && (
-                    <div style={{display:'flex',alignItems:'flex-start',gap:10,fontSize:13,color:'#888'}}>
-                      <span style={{fontSize:16,flexShrink:0}}>📝</span>
-                      <span style={{lineHeight:1.5}}>{ev.notes}</span>
+                    <div style={{display:'flex',alignItems:'center',gap:10,fontSize:13,color:'#888'}}>
+                      <span style={{fontSize:16}}>🕐</span>
+                      <span>{ev.start_time} – {ev.end_time}</span>
                     </div>
-                  )}
-                  {ev.is_private && ownerOf(ev)==='you' && (
-                    <div style={{fontSize:11,color:'#555',background:'#1A1A20',borderRadius:6,padding:'5px 9px'}}>
-                      🔒 Hidden from partner
-                    </div>
-                  )}
-                </div>
+                    {!isPrivatePartner && ev.location && (
+                      <div style={{display:'flex',alignItems:'center',gap:10,fontSize:13,color:'#888'}}>
+                        <span style={{fontSize:16}}>📍</span>
+                        <span>{ev.location}</span>
+                      </div>
+                    )}
+                    {!isPrivatePartner && ev.notes && (
+                      <div style={{display:'flex',alignItems:'flex-start',gap:10,fontSize:13,color:'#888'}}>
+                        <span style={{fontSize:16,flexShrink:0}}>📝</span>
+                        <span style={{lineHeight:1.5}}>{ev.notes}</span>
+                      </div>
+                    )}
+                    {ev.is_private && ownerOf(ev)==='you' && (
+                      <div style={{fontSize:11,color:'#555',background:'#1A1A20',borderRadius:6,padding:'5px 9px'}}>🔒 Hidden from partner</div>
+                    )}
+                    {canDelete(ev) && (
+                      <button onClick={()=>handleDelete(ev)} style={{width:'100%',marginTop:10,background:'#FCA5A511',color:'#FCA5A5',border:'1px solid #FCA5A533',borderRadius:9,padding:10,fontSize:13,cursor:'pointer'}}>
+                        {isOurs ? '🗑 Delete for both of us' : '🗑 Delete event'}
+                      </button>
+                    )}
+                  </div>
+                )}
 
-                {/* Actions */}
-                {canDelete(ev) && (
-                  <button onClick={()=>handleDelete(ev)} style={{
-                    width:'100%',marginTop:20,background:'#FCA5A511',
-                    color:'#FCA5A5',border:'1px solid #FCA5A533',
-                    borderRadius:9,padding:10,fontSize:13,cursor:'pointer',
-                  }}>
-                    {isOurs ? '🗑 Delete for both of us' : '🗑 Delete event'}
-                  </button>
+                {/* ── EDIT MODE ── */}
+                {editing && (
+                  <div style={{display:'flex',flexDirection:'column',gap:11}}>
+                    <div>
+                      <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>Title</label>
+                      <input type="text" value={editForm.title} onChange={e=>setEditForm(f=>({...f,title:e.target.value}))} style={minp}/>
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+                      <div style={{gridColumn:'span 3'}}>
+                        <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>Date</label>
+                        <input type="date" value={editForm.date} onChange={e=>setEditForm(f=>({...f,date:e.target.value}))} style={minp}/>
+                      </div>
+                      <div>
+                        <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>Start</label>
+                        <input type="time" value={editForm.startTime} onChange={e=>setEditForm(f=>({...f,startTime:e.target.value}))} style={minp}/>
+                      </div>
+                      <div>
+                        <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>End</label>
+                        <input type="time" value={editForm.endTime} onChange={e=>setEditForm(f=>({...f,endTime:e.target.value}))} style={minp}/>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>📍 Location</label>
+                      <input type="text" placeholder="Optional" value={editForm.location} onChange={e=>setEditForm(f=>({...f,location:e.target.value}))} style={minp}/>
+                    </div>
+                    <div>
+                      <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>📝 Notes</label>
+                      <textarea rows={2} placeholder="Optional" value={editForm.notes} onChange={e=>setEditForm(f=>({...f,notes:e.target.value}))} style={{...minp,resize:'vertical',fontFamily:'inherit'}}/>
+                    </div>
+                    {!isOurs && (
+                      <label style={{display:'flex',alignItems:'center',gap:7,cursor:'pointer',fontSize:12,color:'#666'}}>
+                        <input type="checkbox" checked={editForm.isPrivate} onChange={e=>setEditForm(f=>({...f,isPrivate:e.target.checked}))} style={{accentColor:'#6EE7B7'}}/>
+                        Keep private (partner sees "Busy")
+                      </label>
+                    )}
+                    <div style={{display:'flex',gap:8,marginTop:4}}>
+                      <button onClick={()=>setEditForm(null)} style={{flex:1,background:'#1A1A20',color:'#666',border:'1px solid #2A2A35',borderRadius:9,padding:10,fontSize:13,cursor:'pointer'}}>
+                        Cancel
+                      </button>
+                      <button onClick={handleSaveEdit} disabled={saving} style={{
+                        flex:2,background:isOurs?'#C4B5FD':'#6EE7B7',
+                        color:'#0F0F13',border:'none',borderRadius:9,padding:10,
+                        fontSize:13,fontWeight:600,cursor:'pointer',opacity:saving?0.6:1,
+                      }}>
+                        {saving ? 'Saving…' : '✓ Save changes'}
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
