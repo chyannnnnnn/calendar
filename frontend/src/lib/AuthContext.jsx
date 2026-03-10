@@ -27,26 +27,48 @@ export function AuthProvider({ children }) {
 
   // ── Load profile + partner ────────────────────────────────
   async function loadProfile(userId) {
-    // Supabase user metadata holds display_name set at signup
-    const { data: { user } } = await supabase.auth.getUser()
-    setProfile({ id: user.id, name: user.user_metadata?.display_name || user.email })
+    // 1. Load own profile from profiles table
+    const { data: myProfile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single()
 
-    // Check for a partnership
-    const { data: partnerships } = await supabase
+    if (myProfile) {
+      setProfile({ id: userId, name: myProfile.display_name || myProfile.id })
+    } else {
+      // Fallback to auth metadata if profile row not ready yet
+      const { data: { user } } = await supabase.auth.getUser()
+      setProfile({ id: userId, name: user.user_metadata?.display_name || user.email })
+    }
+
+    // 2. Check for a partnership
+    const { data: partnership } = await supabase
       .from('partnerships')
       .select('*')
       .or(`user_a.eq.${userId},user_b.eq.${userId}`)
       .maybeSingle()
 
-    if (partnerships) {
-      setPartnershipId(partnerships.id)
-      const partnerId = partnerships.user_a === userId
-        ? partnerships.user_b
-        : partnerships.user_a
+    if (partnership) {
+      setPartnershipId(partnership.id)
+      const partnerId = partnership.user_a === userId
+        ? partnership.user_b
+        : partnership.user_a
 
-      // Get partner metadata via a simple profile lookup
-      // (We store display_name in user_metadata; expose it via a profiles view or edge function in production)
-      setPartner({ id: partnerId, name: 'Partner' })
+      // 3. Fetch partner's real display name from profiles table
+      const { data: partnerProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', partnerId)
+        .single()
+
+      setPartner({
+        id: partnerId,
+        name: partnerProfile?.display_name || 'Partner',
+      })
+    } else {
+      setPartner(null)
+      setPartnershipId(null)
     }
   }
 
