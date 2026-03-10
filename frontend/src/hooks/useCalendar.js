@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { db } from '../lib/db'
-import { pullEvents, subscribeToPartnerEvents, watchConnectivity } from '../lib/sync'
+import { pullEvents, subscribeToEvents, watchConnectivity, startReconciliationLoop } from '../lib/sync'
 import { addEvent, deleteEvent, updateEvent } from '../lib/events'
 import { useAuth } from '../lib/AuthContext'
 
@@ -9,34 +9,36 @@ export function useCalendar() {
   const { user, partner } = useAuth()
   const [syncStatus, setSyncStatus] = useState(navigator.onLine ? 'synced' : 'offline')
 
-  // ── Bootstrap: pull from Supabase on mount ────────────────
   useEffect(() => {
     if (!user) return
+
+    // 1. Pull full state from Supabase on mount
     pullEvents().then(() => setSyncStatus('synced'))
 
-    // Subscribe to partner's live changes
-    let channel
-    if (partner?.id) {
-      channel = subscribeToPartnerEvents(partner.id, () => setSyncStatus('synced'))
-    }
+    // 2. Subscribe to ALL event changes in realtime
+    //    (no owner filter — catches partner deletes reliably)
+    const channel = subscribeToEvents(() => setSyncStatus('synced'))
 
-    // Watch connectivity
-    const cleanup = watchConnectivity(setSyncStatus)
+    // 3. Poll every 30s as a safety net for missed realtime events
+    const stopLoop = startReconciliationLoop(() => setSyncStatus('synced'))
+
+    // 4. Re-pull when browser comes back online
+    const stopConnectivity = watchConnectivity(setSyncStatus)
 
     return () => {
-      cleanup()
       channel?.unsubscribe()
+      stopLoop()
+      stopConnectivity()
     }
   }, [user?.id, partner?.id])
 
-  // ── Live query from Dexie (reactive — updates automatically) ──
+  // Live query from Dexie — UI updates instantly whenever DB changes
   const allEvents = useLiveQuery(
     () => db.events.where('_syncStatus').notEqual('deleted').toArray(),
     [],
     []
   )
 
-  // ── Helpers ───────────────────────────────────────────────
   function eventsForDate(dateStr) {
     return (allEvents || []).filter(e => e.date === dateStr)
   }
