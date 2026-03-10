@@ -38,7 +38,7 @@ const USER_COLORS = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function CalendarPage() {
-  const { user, partner, signOut, isLinked } = useAuth()
+  const { user, partner, signOut, isLinked, unlinkPartner } = useAuth()
   const navigate = useNavigate()
   const { events, eventsForDate, findFreeSlots, createEvent, removeEvent, syncStatus } = useCalendar()
 
@@ -48,7 +48,7 @@ export default function CalendarPage() {
   const [calView,  setCalView]  = useState('week')
   const [navDate,  setNavDate]  = useState(new Date())
   const [tab,      setTab]      = useState('calendar')
-  const [addForm,  setAddForm]  = useState({ title:'', date:'', startTime:'', endTime:'', isPrivate:false })
+  const [addForm,  setAddForm]  = useState({ title:'', date:'', startTime:'', endTime:'', isPrivate:false, recurring:'none', recurUntil:'' })
   const [conflict, setConflict] = useState(null)
   const [saving,   setSaving]   = useState(false)
 
@@ -90,17 +90,43 @@ export default function CalendarPage() {
 
   async function commitAdd() {
     setSaving(true)
-    await createEvent({
-      title:     addForm.title,
-      date:      addForm.date,
-      startTime: addForm.startTime,
-      endTime:   addForm.endTime,
-      isPrivate: addForm.isPrivate,
-    })
-    setAddForm({title:'',date:'',startTime:'',endTime:'',isPrivate:false})
+    const dates = getRecurringDates(addForm.date, addForm.recurring, addForm.recurUntil)
+    for (const date of dates) {
+      await createEvent({
+        title:     addForm.title,
+        date,
+        startTime: addForm.startTime,
+        endTime:   addForm.endTime,
+        isPrivate: addForm.isPrivate,
+      })
+    }
+    setAddForm({title:'',date:'',startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:''})
     setConflict(null)
     setSaving(false)
     setTab('calendar')
+  }
+
+  // ── Recurring date generator ──────────────────────────────
+  function getRecurringDates(startDate, recurring, recurUntil) {
+    if (!startDate) return []
+    if (recurring === 'none' || !recurUntil) return [startDate]
+    const dates = []
+    const current = new Date(startDate)
+    const until   = new Date(recurUntil)
+    while (current <= until) {
+      dates.push(toDateStr(current))
+      if (recurring === 'daily')        current.setDate(current.getDate() + 1)
+      else if (recurring === 'weekly')  current.setDate(current.getDate() + 7)
+      else if (recurring === 'biweekly')current.setDate(current.getDate() + 14)
+      else if (recurring === 'monthly') current.setMonth(current.getMonth() + 1)
+      else break
+    }
+    return dates
+  }
+
+  async function handleUnlink() {
+    if (!confirm(`Unlink from ${partner?.name}? You'll stop seeing each other's calendars.`)) return
+    await unlinkPartner()
   }
 
   // Nav label
@@ -137,13 +163,18 @@ export default function CalendarPage() {
             {syncStatus==='offline' && <span style={{color:'#555'}}>○ offline — saved locally</span>}
           </div>
         </div>
-        <div style={{display:'flex',gap:8,alignItems:'center'}}>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}}>
           {[{key:'you',label:user?.name||'You'},{key:'partner',label:partner?.name||'Partner'}].map(u=>(
             <div key={u.key} style={{display:'flex',alignItems:'center',gap:5,background:'#1A1A20',borderRadius:20,padding:'5px 11px',fontSize:11,color:USER_COLORS[u.key].color}}>
               <div style={{width:5,height:5,borderRadius:'50%',background:USER_COLORS[u.key].color}}/>
               {u.label}
             </div>
           ))}
+          {isLinked && (
+            <button onClick={handleUnlink} title="Unlink partner" style={{background:'none',border:'1px solid #2A2A35',color:'#555',fontSize:11,cursor:'pointer',borderRadius:20,padding:'4px 10px'}}>
+              unlink
+            </button>
+          )}
           <button onClick={signOut} style={{background:'none',border:'none',color:'#333',fontSize:11,cursor:'pointer'}}>sign out</button>
         </div>
       </header>
@@ -361,12 +392,44 @@ export default function CalendarPage() {
                 <input type={type} placeholder={ph} value={addForm[field]} onChange={e=>setAddForm(f=>({...f,[field]:e.target.value}))} style={inp}/>
               </div>
             ))}
+
+            {/* Recurring */}
+            <div style={{marginBottom:11}}>
+              <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>Repeat</label>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:5}}>
+                {[['none','Once'],['daily','Daily'],['weekly','Weekly'],['biweekly','Every 2 wks'],['monthly','Monthly']].map(([val,label])=>(
+                  <button key={val} onClick={()=>setAddForm(f=>({...f,recurring:val}))} style={{
+                    background: addForm.recurring===val ? '#6EE7B733' : '#1A1A20',
+                    border: `1px solid ${addForm.recurring===val ? '#6EE7B7' : '#2A2A35'}`,
+                    color: addForm.recurring===val ? '#6EE7B7' : '#666',
+                    borderRadius:7, padding:'7px 4px', fontSize:11, cursor:'pointer',
+                    gridColumn: val==='monthly' ? 'span 1' : 'auto',
+                  }}>{label}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Until date — only show when recurring */}
+            {addForm.recurring !== 'none' && (
+              <div style={{marginBottom:11,background:'#1A1A20',borderRadius:8,padding:'10px 12px',border:'1px solid #2A2A35'}}>
+                <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:6}}>Repeat until</label>
+                <input type="date" value={addForm.recurUntil} onChange={e=>setAddForm(f=>({...f,recurUntil:e.target.value}))} style={{...inp, marginBottom:0, background:'transparent', border:'none', padding:'0'}}/>
+                {addForm.date && addForm.recurUntil && (
+                  <div style={{fontSize:10,color:'#6EE7B7',marginTop:6}}>
+                    → {getRecurringDates(addForm.date, addForm.recurring, addForm.recurUntil).length} events will be created
+                  </div>
+                )}
+              </div>
+            )}
+
             <label style={{display:'flex',alignItems:'center',gap:7,marginBottom:16,cursor:'pointer',fontSize:12,color:'#666'}}>
               <input type="checkbox" checked={addForm.isPrivate} onChange={e=>setAddForm(f=>({...f,isPrivate:e.target.checked}))} style={{accentColor:'#6EE7B7'}}/>
               Keep details private (partner sees "Busy")
             </label>
-            <button onClick={handleAdd} disabled={saving} style={{width:'100%',background:'#6EE7B7',color:'#0F0F13',border:'none',borderRadius:9,padding:12,fontSize:14,fontWeight:600,cursor:'pointer'}}>
-              {saving?'Saving…':'Add Event'}
+            <button onClick={handleAdd} disabled={saving} style={{width:'100%',background:'#6EE7B7',color:'#0F0F13',border:'none',borderRadius:9,padding:12,fontSize:14,fontWeight:600,cursor:'pointer',opacity:saving?0.6:1}}>
+              {saving ? 'Saving…' : addForm.recurring !== 'none' && addForm.recurUntil
+                ? `Create ${getRecurringDates(addForm.date,addForm.recurring,addForm.recurUntil).length} events`
+                : 'Add Event'}
             </button>
           </div>
         )}
