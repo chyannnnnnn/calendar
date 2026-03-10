@@ -56,7 +56,7 @@ export default function CalendarPage() {
   const monthDates = getMonthDates(navDate)
   const navDateStr = toDateStr(navDate)
 
-  function navigate(dir) {
+  function navCal(dir) {
     const d = new Date(navDate)
     if (calView==='day')   d.setDate(d.getDate()+dir)
     else if (calView==='week') d.setDate(d.getDate()+dir*7)
@@ -169,9 +169,9 @@ export default function CalendarPage() {
             }}>{v}</button>
           ))}
         </div>
-        <button onClick={()=>navigate(-1)} style={{background:'#1A1A20',border:'none',color:'#777',borderRadius:8,padding:'5px 11px',cursor:'pointer',fontSize:15}}>‹</button>
+        <button onClick={()=>navCal(-1)} style={{background:'#1A1A20',border:'none',color:'#777',borderRadius:8,padding:'5px 11px',cursor:'pointer',fontSize:15}}>‹</button>
         <span style={{fontFamily:"'Playfair Display'",fontSize:14,minWidth:160,textAlign:'center'}}>{navLabel}</span>
-        <button onClick={()=>navigate(1)}  style={{background:'#1A1A20',border:'none',color:'#777',borderRadius:8,padding:'5px 11px',cursor:'pointer',fontSize:15}}>›</button>
+        <button onClick={()=>navCal(1)}  style={{background:'#1A1A20',border:'none',color:'#777',borderRadius:8,padding:'5px 11px',cursor:'pointer',fontSize:15}}>›</button>
         <button onClick={()=>setNavDate(new Date())} style={{background:'#1A1A20',border:'none',color:'#6EE7B7',borderRadius:8,padding:'5px 11px',cursor:'pointer',fontSize:11}}>Today</button>
       </div>
 
