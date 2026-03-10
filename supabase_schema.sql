@@ -49,6 +49,8 @@ alter table profiles add column if not exists email text not null default '';
 
 -- Add event_type for existing databases
 alter table events add column if not exists event_type text not null default 'mine';
+alter table events add column if not exists location   text not null default '';
+alter table events add column if not exists notes      text not null default '';
 
 -- PARTNERSHIPS
 -- A single row links two users as a pair.
@@ -71,6 +73,8 @@ create table if not exists events (
   end_time     time not null,
   is_private   boolean default false,
   event_type   text default 'mine',     -- 'mine' (personal) | 'ours' (shared date)
+  location     text default '',
+  notes        text default '',
   is_recurring boolean default false,
   recur_rule   text,
   updated_at   timestamptz default now(),

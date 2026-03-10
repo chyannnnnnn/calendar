@@ -49,9 +49,10 @@ export default function CalendarPage() {
   const [calView,  setCalView]  = useState('week')
   const [navDate,  setNavDate]  = useState(new Date())
   const [tab,      setTab]      = useState('calendar')
-  const [addForm,  setAddForm]  = useState({ title:'', date:'', startTime:'', endTime:'', isPrivate:false, recurring:'none', recurUntil:'', eventType:'mine' })
+  const [addForm,  setAddForm]  = useState({ title:'', date:'', startTime:'', endTime:'', isPrivate:false, recurring:'none', recurUntil:'', eventType:'mine', location:'', notes:'' })
   const [conflict, setConflict] = useState(null)
   const [saving,   setSaving]   = useState(false)
+  const [selectedEvent, setSelectedEvent] = useState(null)
 
   const weekDates  = getWeekDates(navDate)
   const monthDates = getMonthDates(navDate)
@@ -82,6 +83,17 @@ export default function CalendarPage() {
     return ev.title
   }
 
+  function canDelete(ev) {
+    // Owner can always delete their own events
+    // Either side can delete a shared "ours" event
+    return ownerOf(ev) === 'you' || ev.event_type === 'ours'
+  }
+
+  async function handleDelete(ev) {
+    setSelectedEvent(null)
+    await removeEvent(ev.id)
+  }
+
   async function handleAdd() {
     if (!addForm.title||!addForm.date||!addForm.startTime||!addForm.endTime) return
     // Only check for partner conflict when creating a shared "ours" event
@@ -107,9 +119,11 @@ export default function CalendarPage() {
         endTime:   addForm.endTime,
         isPrivate: addForm.isPrivate,
         eventType: addForm.eventType,
+        location:  addForm.location,
+        notes:     addForm.notes,
       })
     }
-    setAddForm({title:'',date:'',startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:'',eventType:'mine'})
+    setAddForm({title:'',date:'',startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:'',eventType:'mine',location:'',notes:''})
     setConflict(null)
     setSaving(false)
     setTab('calendar')
@@ -282,15 +296,16 @@ export default function CalendarPage() {
                       <div style={{fontSize:10,color:'#555',marginBottom:2,textTransform:'uppercase',letterSpacing:'0.05em'}}>{DAYS[date.getDay()]}</div>
                       <div onClick={()=>goToDay(date)} style={{fontSize:19,fontFamily:"'Playfair Display'",color:isToday?'#6EE7B7':'#F0EDE8',marginBottom:7,cursor:'pointer'}}>{date.getDate()}</div>
                       {dayEvs.map(ev=>(
-                        <div key={ev.id} style={{
+                        <div key={ev.id} onClick={()=>setSelectedEvent(ev)} style={{
                           background:eventColor(ev)+'22',
                           borderLeft:`2px solid ${eventColor(ev)}`,
                           borderRadius:4,padding:'2px 5px',marginBottom:2,
                           fontSize:9,color:eventColor(ev),
                           display:'flex',justifyContent:'space-between',alignItems:'center',
+                          cursor:'pointer',
                         }}>
                           <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:60}}>{eventLabel(ev)}</span>
-                          {ownerOf(ev)==='you'&&<span onClick={()=>removeEvent(ev.id)} style={{cursor:'pointer',opacity:0.35,flexShrink:0,fontSize:8,marginLeft:2}}>✕</span>}
+                          {canDelete(ev)&&<span onClick={e=>{e.stopPropagation();handleDelete(ev)}} style={{cursor:'pointer',opacity:0.35,flexShrink:0,fontSize:8,marginLeft:2}}>✕</span>}
                         </div>
                       ))}
                       {freeSlots.length>0&&<div style={{marginTop:3,fontSize:8,color:'#6EE7B7',background:'#6EE7B722',borderRadius:4,padding:'2px 4px'}}>✦ {freeSlots.length} free</div>}
@@ -334,15 +349,15 @@ export default function CalendarPage() {
                         <div style={{flex:1,padding:'4px 8px',display:'flex',gap:4,flexWrap:'wrap',position:'relative'}}>
                           {isFree&&<div style={{position:'absolute',right:8,top:5,fontSize:8,color:'#6EE7B7',opacity:0.5}}>✦ both free</div>}
                           {hourEvs.map(ev=>(
-                            <div key={ev.id} style={{
+                            <div key={ev.id} onClick={()=>setSelectedEvent(ev)} style={{
                               background:eventColor(ev)+'22',
                               borderLeft:`3px solid ${eventColor(ev)}`,
                               borderRadius:5,padding:'3px 7px',fontSize:10,color:eventColor(ev),
-                              display:'flex',flexDirection:'column',gap:1,minWidth:90,
+                              display:'flex',flexDirection:'column',gap:1,minWidth:90,cursor:'pointer',
                             }}>
                               <span style={{fontWeight:500}}>{eventLabel(ev)}</span>
                               <span style={{fontSize:8,opacity:0.65}}>{ev.start_time}–{ev.end_time}</span>
-                              {ownerOf(ev)==='you'&&<span onClick={()=>removeEvent(ev.id)} style={{fontSize:8,opacity:0.35,cursor:'pointer',alignSelf:'flex-end'}}>✕ remove</span>}
+                              {canDelete(ev)&&<span onClick={e=>{e.stopPropagation();handleDelete(ev)}} style={{fontSize:8,opacity:0.35,cursor:'pointer',alignSelf:'flex-end'}}>✕ remove</span>}
                             </div>
                           ))}
                         </div>
@@ -430,6 +445,16 @@ export default function CalendarPage() {
               </div>
             ))}
 
+            {/* Location + Notes */}
+            <div style={{marginBottom:11}}>
+              <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>Location <span style={{color:'#333',textTransform:'none',letterSpacing:0}}>(optional)</span></label>
+              <input type="text" placeholder="e.g. Straits Quay, Penang" value={addForm.location} onChange={e=>setAddForm(f=>({...f,location:e.target.value}))} style={inp}/>
+            </div>
+            <div style={{marginBottom:11}}>
+              <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>Notes <span style={{color:'#333',textTransform:'none',letterSpacing:0}}>(optional)</span></label>
+              <textarea placeholder="Any details, reminders…" value={addForm.notes} onChange={e=>setAddForm(f=>({...f,notes:e.target.value}))} rows={2} style={{...inp,resize:'vertical',fontFamily:'inherit'}}/>
+            </div>
+
             {/* Recurring */}
             <div style={{marginBottom:11}}>
               <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>Repeat</label>
@@ -478,6 +503,78 @@ export default function CalendarPage() {
             </button>
           </div>
         )}
+
+        {/* ── Event detail modal ── */}
+        {selectedEvent && (() => {
+          const ev = selectedEvent
+          const color = eventColor(ev)
+          const isOurs = ev.event_type === 'ours' || ev.title?.startsWith('💑')
+          const isPrivatePartner = ev.is_private && ownerOf(ev) === 'partner'
+          return (
+            <div onClick={()=>setSelectedEvent(null)} style={{position:'fixed',inset:0,background:'#000B',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200,padding:20}}>
+              <div onClick={e=>e.stopPropagation()} style={{
+                background:'#13131A',border:`1px solid ${color}44`,
+                borderRadius:16,padding:24,maxWidth:360,width:'100%',
+              }}>
+                {/* Header */}
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:16}}>
+                  <div>
+                    <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:4}}>
+                      <div style={{width:8,height:8,borderRadius:'50%',background:color,flexShrink:0}}/>
+                      <span style={{fontSize:10,color:color,textTransform:'uppercase',letterSpacing:'0.05em'}}>
+                        {isOurs ? '💑 For us' : ownerOf(ev)==='you' ? user?.name||'You' : partner?.name||'Partner'}
+                      </span>
+                    </div>
+                    <div style={{fontFamily:"'Playfair Display'",fontSize:20,color:'#F0EDE8',lineHeight:1.2}}>
+                      {isPrivatePartner ? '🔒 Busy' : ev.title}
+                    </div>
+                  </div>
+                  <button onClick={()=>setSelectedEvent(null)} style={{background:'none',border:'none',color:'#444',fontSize:18,cursor:'pointer',padding:'0 4px'}}>✕</button>
+                </div>
+
+                {/* Details */}
+                <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                  <div style={{display:'flex',alignItems:'center',gap:10,fontSize:13,color:'#888'}}>
+                    <span style={{fontSize:16}}>📅</span>
+                    <span>{DAYS[new Date(ev.date+'T00:00').getDay()]}, {MONTHS[new Date(ev.date+'T00:00').getMonth()]} {new Date(ev.date+'T00:00').getDate()}</span>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:10,fontSize:13,color:'#888'}}>
+                    <span style={{fontSize:16}}>🕐</span>
+                    <span>{ev.start_time} – {ev.end_time}</span>
+                  </div>
+                  {!isPrivatePartner && ev.location && (
+                    <div style={{display:'flex',alignItems:'center',gap:10,fontSize:13,color:'#888'}}>
+                      <span style={{fontSize:16}}>📍</span>
+                      <span>{ev.location}</span>
+                    </div>
+                  )}
+                  {!isPrivatePartner && ev.notes && (
+                    <div style={{display:'flex',alignItems:'flex-start',gap:10,fontSize:13,color:'#888'}}>
+                      <span style={{fontSize:16,flexShrink:0}}>📝</span>
+                      <span style={{lineHeight:1.5}}>{ev.notes}</span>
+                    </div>
+                  )}
+                  {ev.is_private && ownerOf(ev)==='you' && (
+                    <div style={{fontSize:11,color:'#555',background:'#1A1A20',borderRadius:6,padding:'5px 9px'}}>
+                      🔒 Hidden from partner
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                {canDelete(ev) && (
+                  <button onClick={()=>handleDelete(ev)} style={{
+                    width:'100%',marginTop:20,background:'#FCA5A511',
+                    color:'#FCA5A5',border:'1px solid #FCA5A533',
+                    borderRadius:9,padding:10,fontSize:13,cursor:'pointer',
+                  }}>
+                    {isOurs ? '🗑 Delete for both of us' : '🗑 Delete event'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* ── Conflict modal ── */}
         {conflict&&(
