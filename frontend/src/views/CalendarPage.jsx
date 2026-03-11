@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { useCalendar } from '../hooks/useCalendar'
+import { useTheme } from '../lib/ThemeContext'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
@@ -31,29 +32,6 @@ function getMonthDates(base) {
 
 const HOUR_ROWS = Array.from({length:16},(_,i)=>i+7)
 
-// ─── Warm light palette ───────────────────────────────────────────────────────
-const C = {
-  bg:        '#FDF6EE',   // warm parchment
-  surface:   '#FFF8F0',   // slightly lighter card
-  surfaceHi: '#FFF0E0',   // today highlight
-  border:    '#E8D5BC',   // warm tan border
-  borderHi:  '#D4A87A',   // highlighted border
-  text:      '#3D2B1F',   // deep warm brown text
-  textMid:   '#8B6650',   // mid brown
-  textDim:   '#B89880',   // muted warm
-  mint:      '#4BAF84',   // your color — forest mint
-  rose:      '#D4607A',   // partner — warm rose
-  lavender:  '#8B72BE',   // ours — dusty purple
-  gold:      '#D4920A',   // free together — amber
-  peach:     '#E87840',   // accent burnt orange
-  shadow:    '#C4A07844', // warm shadow
-}
-
-const USER_COLORS = {
-  you:     { color: C.mint },
-  partner: { color: C.rose },
-  ours:    { color: C.lavender },
-}
 
 // ─── Custom sticker system ────────────────────────────────────────────────────
 // Stickers are stored in localStorage keyed by event id
@@ -115,7 +93,7 @@ function FloatingDoodles() {
 }
 
 // ─── Sticker Picker Modal ─────────────────────────────────────────────────────
-function StickerPicker({ onSelect, onClose }) {
+function StickerPicker({ onSelect, onClose, C }) {
   const PRESET_STICKERS = ['🌸','💕','🌿','✨','🍀','🌻','🎀','🫧','🍓','🧸','🌈','🎠','🦋','🍵','🌙','⭐','🫶','🎪','🌺','🍡']
   return (
     <div onClick={onClose} style={{position:'fixed',inset:0,background:'#3D2B1F55',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:400,padding:20}}>
@@ -160,7 +138,7 @@ function StickerPicker({ onSelect, onClose }) {
 }
 
 // ─── Sticker display component ────────────────────────────────────────────────
-function EventSticker({ sticker, size=16 }) {
+function EventSticker({ sticker, size=16, C }) {
   if (!sticker) return (
     <div style={{
       width:size, height:size, borderRadius:4, flexShrink:0,
@@ -178,7 +156,9 @@ function EventSticker({ sticker, size=16 }) {
 export default function CalendarPage() {
   const { user, partner, signOut, isLinked, unlinkPartner } = useAuth()
   const navigate = useNavigate()
-  const { events, eventsForDate, findFreeSlots, createEvent, removeEvent, syncStatus } = useCalendar()
+  const { events, eventsForDate, findFreeSlots, createEvent, removeEvent, updateEvent, syncStatus } = useCalendar()
+  const { C, mode, toggle: toggleTheme } = useTheme()
+  const USER_COLORS = { you:{ color:C.mint }, partner:{ color:C.rose }, ours:{ color:C.lavender } }
 
   const today    = new Date()
   const todayStr = toDateStr(today)
@@ -393,6 +373,7 @@ export default function CalendarPage() {
               unlink
             </button>
           )}
+          <button onClick={toggleTheme} title="Toggle theme" style={{background:C.surface,border:`1px solid ${C.border}`,color:C.textMid,fontSize:15,cursor:'pointer',borderRadius:10,padding:'3px 9px'}}>{mode==='light'?'🌙':'☀️'}</button>
           <button onClick={signOut} style={{background:'none',border:'none',color:C.textDim,fontSize:11,cursor:'pointer'}}>sign out</button>
         </div>
       </header>
@@ -476,7 +457,7 @@ export default function CalendarPage() {
                             whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',
                             display:'flex',alignItems:'center',gap:3,
                           }}>
-                            <EventSticker sticker={stickers[ev.id]} size={10}/>
+                            <EventSticker sticker={stickers[ev.id]} size={10} C={C}/>
                             <span style={{overflow:'hidden',textOverflow:'ellipsis'}}>{eventLabel(ev)?.replace(/^💑\s?/,'')}</span>
                           </div>
                         ))}
@@ -518,7 +499,7 @@ export default function CalendarPage() {
                         }}>
                           <span style={{display:'flex',alignItems:'center',gap:3,overflow:'hidden'}}>
                             <span onClick={e=>{e.stopPropagation();setStickerTarget(ev.id)}} title="Add sticker">
-                              <EventSticker sticker={stickers[ev.id]} size={13}/>
+                              <EventSticker sticker={stickers[ev.id]} size={13} C={C}/>
                             </span>
                             <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:50}}>{eventLabel(ev)?.replace(/^💑\s?/,'')}</span>
                           </span>
@@ -574,7 +555,7 @@ export default function CalendarPage() {
                             }}>
                               <span style={{fontWeight:700,display:'flex',alignItems:'center',gap:5}}>
                                 <span onClick={e=>{e.stopPropagation();setStickerTarget(ev.id)}} title="Add sticker">
-                                  <EventSticker sticker={stickers[ev.id]} size={16}/>
+                                  <EventSticker sticker={stickers[ev.id]} size={16} C={C}/>
                                 </span>
                                 {eventLabel(ev)?.replace(/^💑\s?/,'')}
                               </span>
@@ -751,7 +732,7 @@ export default function CalendarPage() {
                         padding:'6px 8px',cursor:'pointer',display:'flex',alignItems:'center',gap:6,
                         fontSize:11,color:C.textMid,
                       }}>
-                        <EventSticker sticker={stickers[ev.id]} size={22}/>
+                        <EventSticker sticker={stickers[ev.id]} size={22} C={C}/>
                         <span style={{fontSize:9}}>+sticker</span>
                       </button>
                       <span style={{fontSize:10,color:color,textTransform:'uppercase',letterSpacing:'0.07em',fontWeight:700}}>
@@ -882,13 +863,13 @@ export default function CalendarPage() {
           <StickerPicker
             onSelect={handleStickerSelect}
             onClose={()=>setStickerTarget(null)}
+            C={C}
           />
         )}
 
       </main>
       <style>{`
         * { box-sizing:border-box }
-        body { background:#FDF6EE }
         input[type=date]::-webkit-calendar-picker-indicator,
         input[type=time]::-webkit-calendar-picker-indicator { filter:opacity(0.5) }
         ::-webkit-scrollbar { width:4px }
