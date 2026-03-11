@@ -44,12 +44,31 @@ export async function flushQueue() {
   for (const item of queue) {
     try {
       if (item.type === 'upsert') {
-        // Strip local-only fields before sending to Supabase
-        const { _syncStatus, created_at, ...rest } = item.payload
-        const { error } = await supabase
-          .from('events')
-          .upsert({ ...rest }, { onConflict: 'id' })
-        if (error) throw error
+        // Strip local-only fields — Supabase doesn't know these columns
+        const { _syncStatus, created_at, ...payload } = item.payload
+
+        // Use update if the row exists, insert if it's new
+        // This is more explicit than upsert and avoids RLS edge cases
+        const { data: existing } = await supabase
+          .from('events').select('id').eq('id', payload.id).single()
+
+        let error
+        if (existing) {
+          ;({ error } = await supabase
+            .from('events')
+            .update(payload)
+            .eq('id', payload.id))
+        } else {
+          ;({ error } = await supabase
+            .from('events')
+            .insert(payload))
+        }
+
+        if (error) {
+          console.error('[sync] upsert failed:', error.code, error.message, error.details)
+          throw error
+        }
+
         await db.events.update(item.payload.id, { _syncStatus: 'synced' })
 
       } else if (item.type === 'delete') {

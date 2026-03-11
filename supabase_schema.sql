@@ -10,6 +10,10 @@
 drop policy if exists "Authenticated users can read profiles" on profiles;
 drop policy if exists "Users can update own profile"          on profiles;
 drop policy if exists "Owner full access"                     on events;
+drop policy if exists "Owner can select own events"           on events;
+drop policy if exists "Owner can insert own events"           on events;
+drop policy if exists "Owner can update own events"           on events;
+drop policy if exists "Owner can delete own events"           on events;
 drop policy if exists "Partner can read events"               on events;
 drop policy if exists "Members can read their partnership"    on partnerships;
 drop policy if exists "Members can insert partnership"        on partnerships;
@@ -153,9 +157,24 @@ create policy "Users can update own profile"
   using (auth.uid() = id);
 
 -- EVENTS
--- Owner has full insert / update / delete access to their own events
-create policy "Owner full access"
-  on events for all
+-- Split into explicit per-operation policies so INSERT/UPDATE/DELETE
+-- each get both a USING and WITH CHECK clause — required for writes to work.
+
+create policy "Owner can select own events"
+  on events for select
+  using (auth.uid() = owner_id);
+
+create policy "Owner can insert own events"
+  on events for insert
+  with check (auth.uid() = owner_id);
+
+create policy "Owner can update own events"
+  on events for update
+  using  (auth.uid() = owner_id)
+  with check (auth.uid() = owner_id);
+
+create policy "Owner can delete own events"
+  on events for delete
   using (auth.uid() = owner_id);
 
 -- Partner can read events (app handles showing "Busy" for private ones)
