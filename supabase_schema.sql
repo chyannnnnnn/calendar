@@ -218,3 +218,14 @@ create policy "Anyone can read invite to accept"
 -- Pushes event changes live to all connected clients
 
 alter publication supabase_realtime add table events;
+
+
+-- ─── 6. PROFILE EXTRAS ───────────────────────────────────────────────────────
+-- Stores rich profile info as a JSONB column so we can add fields freely
+-- without schema migrations. App reads/writes this as a plain JS object.
+
+alter table profiles add column if not exists extras jsonb not null default '{}';
+
+-- Allow users to update their own extras
+drop policy if exists "Users can update own extras" on profiles;
+-- (covered by existing "Users can update own profile" policy which is for all of profiles)

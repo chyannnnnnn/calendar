@@ -173,6 +173,7 @@ export default function CalendarPage() {
   const [editForm, setEditForm] = useState(null)
   const [stickers, setStickers] = useState({})          // { [eventId]: {type,value} }
   const [stickerTarget, setStickerTarget] = useState(null) // eventId being stickered
+  const [confirmDelete, setConfirmDelete] = useState(null) // eventId pending quick-delete confirm
 
   const weekDates  = getWeekDates(navDate)
   const monthDates = getMonthDates(navDate)
@@ -269,7 +270,19 @@ export default function CalendarPage() {
 
   async function handleDelete(ev) {
     setSelectedEvent(null)
+    setConfirmDelete(null)
     await removeEvent(ev.id)
+  }
+
+  function quickDelete(e, ev) {
+    e.stopPropagation()
+    if (confirmDelete === ev.id) {
+      handleDelete(ev)
+    } else {
+      setConfirmDelete(ev.id)
+      // Auto-cancel after 3s
+      setTimeout(() => setConfirmDelete(c => c === ev.id ? null : c), 3000)
+    }
   }
 
   async function handleAdd() {
@@ -369,11 +382,20 @@ export default function CalendarPage() {
           </div>
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}}>
-          {[{key:'you',label:user?.name||'You',emoji:'🌿'},{key:'partner',label:partner?.name||'Partner',emoji:'🌷'}].map(u=>(
-            <div key={u.key} style={{display:'flex',alignItems:'center',gap:5,background:C.surface,border:`1px solid ${USER_COLORS[u.key].color}44`,borderRadius:20,padding:'5px 12px',fontSize:11,color:USER_COLORS[u.key].color}}>
+          {[
+            {key:'you',     label:user?.name||'You',         emoji:'🌿', route:'/profile?view=mine'},
+            {key:'partner', label:partner?.name||'Partner',  emoji:'🌷', route:'/profile?view=partner'},
+          ].map(u=>(
+            <button key={u.key} onClick={()=>navigate(u.route)} style={{
+              display:'flex',alignItems:'center',gap:5,
+              background:C.surface,border:`1px solid ${USER_COLORS[u.key].color}44`,
+              borderRadius:20,padding:'5px 12px',fontSize:11,
+              color:USER_COLORS[u.key].color,cursor:'pointer',
+              transition:'all 0.15s',fontFamily:'inherit',fontWeight:600,
+            }}>
               <span style={{fontSize:12}}>{u.emoji}</span>
               {u.label}
-            </div>
+            </button>
           ))}
           {isLinked && (
             <button onClick={handleUnlink} title="Unlink partner" style={{background:'none',border:`1px solid ${C.border}`,color:C.textDim,fontSize:11,cursor:'pointer',borderRadius:20,padding:'4px 10px'}}>
@@ -427,7 +449,7 @@ export default function CalendarPage() {
       </div>
 
       {/* ── Main content ── */}
-      <main style={{flex:1,padding:'14px 24px',overflowY:'auto',position:'relative',zIndex:1}}>
+      <main onClick={()=>setConfirmDelete(null)} style={{flex:1,padding:'14px 24px',overflowY:'auto',position:'relative',zIndex:1}}>
 
         {/* ════ CALENDAR TAB ════ */}
         {tab==='calendar' && (
@@ -510,7 +532,17 @@ export default function CalendarPage() {
                             </span>
                             <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:50}}>{eventLabel(ev)?.replace(/^💑\s?/,'')}</span>
                           </span>
-                          {canDelete(ev)&&<span onClick={e=>{e.stopPropagation();handleDelete(ev)}} style={{cursor:'pointer',opacity:0.3,flexShrink:0,fontSize:8,marginLeft:2}}>✕</span>}
+                          {canDelete(ev)&&(
+                            <button onClick={e=>quickDelete(e,ev)} style={{
+                              background: confirmDelete===ev.id ? C.rose : 'transparent',
+                              border: 'none', borderRadius:4, cursor:'pointer', flexShrink:0,
+                              fontSize:10, padding:'1px 4px', marginLeft:2,
+                              color: confirmDelete===ev.id ? '#fff' : C.rose,
+                              fontWeight:700, transition:'all 0.15s', fontFamily:'inherit',
+                            }} title="Delete">
+                              {confirmDelete===ev.id ? '✓ sure?' : '🗑'}
+                            </button>
+                          )}
                         </div>
                       ))}
                       {freeSlots.length>0&&<div style={{marginTop:4,fontSize:8,color:C.gold,background:C.gold+'18',border:`1px solid ${C.gold}33`,borderRadius:6,padding:'2px 5px',fontWeight:600}}>✦ {freeSlots.length} free</div>}
@@ -567,7 +599,18 @@ export default function CalendarPage() {
                                 {eventLabel(ev)?.replace(/^💑\s?/,'')}
                               </span>
                               <span style={{fontSize:8,opacity:0.65}}>{ev.start_time}–{ev.end_time}</span>
-                              {canDelete(ev)&&<span onClick={e=>{e.stopPropagation();handleDelete(ev)}} style={{fontSize:8,opacity:0.35,cursor:'pointer',alignSelf:'flex-end'}}>✕ remove</span>}
+                              {canDelete(ev)&&(
+                                <button onClick={e=>quickDelete(e,ev)} style={{
+                                  background: confirmDelete===ev.id ? C.rose : C.bg,
+                                  border:`1px solid ${C.rose}44`, borderRadius:6,
+                                  cursor:'pointer', fontSize:10, padding:'2px 7px',
+                                  color: confirmDelete===ev.id ? '#fff' : C.rose,
+                                  fontWeight:700, alignSelf:'flex-end', transition:'all 0.2s',
+                                  fontFamily:'inherit',
+                                }}>
+                                  {confirmDelete===ev.id ? '✓ sure?' : '🗑 remove'}
+                                </button>
+                              )}
                             </div>
                           ))}
                         </div>
