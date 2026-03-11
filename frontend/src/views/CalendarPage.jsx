@@ -772,7 +772,16 @@ export default function CalendarPage() {
             ))}
             <div style={{marginBottom:12}}>
               <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>📍 Location <span style={{color:C.textDim,textTransform:'none',letterSpacing:0,fontWeight:400}}>(optional)</span></label>
-              <input type="text" placeholder="e.g. Straits Quay, Penang" value={addForm.location} onChange={e=>setAddForm(f=>({...f,location:e.target.value}))} style={inp}/>
+              <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                <input type="text" placeholder="e.g. Straits Quay, Penang" value={addForm.location} onChange={e=>setAddForm(f=>({...f,location:e.target.value}))} style={{...inp,marginBottom:0,flex:1}}/>
+                {addForm.location && (
+                  <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addForm.location)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{flexShrink:0,background:C.peach,color:'#fff',borderRadius:10,padding:'10px 12px',fontSize:12,fontWeight:700,textDecoration:'none',display:'flex',alignItems:'center',gap:4,whiteSpace:'nowrap'}}>
+                    🗺 Maps
+                  </a>
+                )}
+              </div>
             </div>
             <div style={{marginBottom:12}}>
               <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>📝 Notes <span style={{color:C.textDim,textTransform:'none',letterSpacing:0,fontWeight:400}}>(optional)</span></label>
@@ -939,8 +948,17 @@ export default function CalendarPage() {
                       </div>
                     </div>
                     <div>
-                      <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>📍 Location</label>
-                      <input type="text" placeholder="Optional" value={editForm.location} onChange={e=>setEditForm(f=>({...f,location:e.target.value}))} style={minp}/>
+                      <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>📍 Location</label>
+                      <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                        <input type="text" placeholder="e.g. Gurney Drive, Penang" value={editForm.location} onChange={e=>setEditForm(f=>({...f,location:e.target.value}))} style={{...minp,flex:1,marginBottom:0}}/>
+                        {editForm.location && (
+                          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(editForm.location)}`}
+                            target="_blank" rel="noopener noreferrer"
+                            style={{flexShrink:0,background:C.peach,color:'#fff',borderRadius:8,padding:'9px 11px',fontSize:11,fontWeight:700,textDecoration:'none',whiteSpace:'nowrap'}}>
+                            🗺 Maps
+                          </a>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>📝 Notes</label>
