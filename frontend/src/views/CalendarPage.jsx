@@ -31,21 +31,22 @@ function getMonthDates(base) {
 
 const HOUR_ROWS = Array.from({length:16},(_,i)=>i+7)
 
-// ─── Cozy warm palette ────────────────────────────────────────────────────────
+// ─── Warm light palette ───────────────────────────────────────────────────────
 const C = {
-  bg:        '#1C1612',   // deep warm brown-black
-  surface:   '#231D17',   // card surface
-  surfaceHi: '#2C2318',   // hovered/today
-  border:    '#3A2E24',   // warm border
-  borderHi:  '#5C4A35',   // highlighted border
-  text:      '#F5ECD7',   // warm cream text
-  textMid:   '#A08060',   // mid tone
-  textDim:   '#5A4535',   // dim text
-  mint:      '#7EDCB0',   // your color — warm mint
-  rose:      '#F4A0A0',   // partner — dusty rose
-  lavender:  '#C9B8F0',   // ours — soft lavender
-  gold:      '#F0C060',   // free together — warm gold
-  peach:     '#F0A878',   // accent peach
+  bg:        '#FDF6EE',   // warm parchment
+  surface:   '#FFF8F0',   // slightly lighter card
+  surfaceHi: '#FFF0E0',   // today highlight
+  border:    '#E8D5BC',   // warm tan border
+  borderHi:  '#D4A87A',   // highlighted border
+  text:      '#3D2B1F',   // deep warm brown text
+  textMid:   '#8B6650',   // mid brown
+  textDim:   '#B89880',   // muted warm
+  mint:      '#4BAF84',   // your color — forest mint
+  rose:      '#D4607A',   // partner — warm rose
+  lavender:  '#8B72BE',   // ours — dusty purple
+  gold:      '#D4920A',   // free together — amber
+  peach:     '#E87840',   // accent burnt orange
+  shadow:    '#C4A07844', // warm shadow
 }
 
 const USER_COLORS = {
@@ -54,52 +55,36 @@ const USER_COLORS = {
   ours:    { color: C.lavender },
 }
 
-// ─── Sticker system ───────────────────────────────────────────────────────────
-// Auto-assigns a cute sticker based on event title keywords
-function getEventSticker(ev) {
-  if (!ev?.title) return '📌'
-  const t = ev.title.toLowerCase()
-  if (ev.event_type === 'ours' || t.includes('💑')) return '💕'
-  if (t.match(/dinner|lunch|brunch|eat|food|cafe|restaurant|cook/)) return '🍽️'
-  if (t.match(/movie|film|cinema|watch|netflix/)) return '🎬'
-  if (t.match(/gym|workout|run|yoga|sport|exercise|swim/)) return '🏃'
-  if (t.match(/work|meeting|office|call|zoom|interview|standup/)) return '💼'
-  if (t.match(/birthday|bday|party|celebrate|anniversary/)) return '🎂'
-  if (t.match(/travel|trip|flight|holiday|vacation|hotel/)) return '✈️'
-  if (t.match(/doctor|dentist|hospital|clinic|med/)) return '🏥'
-  if (t.match(/study|class|school|course|tutor|learn/)) return '📚'
-  if (t.match(/shop|mall|grocery|market/)) return '🛍️'
-  if (t.match(/music|concert|gig|show|event/)) return '🎵'
-  if (t.match(/date|love|heart|romantic|walk/)) return '🌸'
-  if (t.match(/coffee|tea|boba/)) return '☕'
-  if (t.match(/game|gaming|play/)) return '🎮'
-  if (t.match(/family|parents|home/)) return '🏠'
-  return '✨'
+// ─── Custom sticker system ────────────────────────────────────────────────────
+// Stickers are stored in localStorage keyed by event id
+// Each sticker is a { type: 'emoji'|'image', value: string } — but we expose
+// a placeholder UI so the user can upload their own image or pick nothing.
+// Default: a soft placeholder shown on each event chip.
+
+function getStickerForEvent(id, stickers) {
+  return stickers?.[id] || null
 }
 
 // ─── Floating background doodles ─────────────────────────────────────────────
 const DOODLES = [
-  // tiny heart
-  { id:'h1', x:'8%',  y:'12%', size:18, rotate:'-15deg', dur:'6s', delay:'0s',
-    svg:<svg viewBox="0 0 24 24" fill="none"><path d="M12 21C12 21 3 14 3 8.5C3 5.42 5.42 3 8.5 3C10.24 3 11.91 3.81 13 5.08C14.09 3.81 15.76 3 17.5 3C20.58 3 23 5.42 23 8.5C23 14 14 21 12 21Z" fill="#F4A0A033" stroke="#F4A0A055" strokeWidth="1"/></svg> },
-  // star
-  { id:'s1', x:'88%', y:'8%',  size:14, rotate:'20deg',  dur:'8s', delay:'1s',
-    svg:<svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9" fill="#F0C06033" stroke="#F0C06055" strokeWidth="1"/></svg> },
-  // moon
-  { id:'m1', x:'5%',  y:'55%', size:20, rotate:'10deg',  dur:'10s',delay:'2s',
-    svg:<svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z" fill="#C9B8F033" stroke="#C9B8F055" strokeWidth="1"/></svg> },
-  // flower
-  { id:'f1', x:'92%', y:'45%', size:22, rotate:'-20deg', dur:'7s', delay:'0.5s',
-    svg:<svg viewBox="0 0 32 32"><circle cx="16" cy="10" r="4" fill="#F0A87833"/><circle cx="22" cy="14" r="4" fill="#F0A87833"/><circle cx="22" cy="21" r="4" fill="#F0A87833"/><circle cx="16" cy="25" r="4" fill="#F0A87833"/><circle cx="10" cy="21" r="4" fill="#F0A87833"/><circle cx="10" cy="14" r="4" fill="#F0A87833"/><circle cx="16" cy="17" r="5" fill="#F0C06055"/></svg> },
-  // sparkle
-  { id:'sp1',x:'50%', y:'5%',  size:16, rotate:'0deg',   dur:'5s', delay:'1.5s',
-    svg:<svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="#7EDCB055" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  // heart 2
-  { id:'h2', x:'75%', y:'75%', size:14, rotate:'12deg',  dur:'9s', delay:'3s',
-    svg:<svg viewBox="0 0 24 24"><path d="M12 21C12 21 3 14 3 8.5C3 5.42 5.42 3 8.5 3C10.24 3 11.91 3.81 13 5.08C14.09 3.81 15.76 3 17.5 3C20.58 3 23 5.42 23 8.5C23 14 14 21 12 21Z" fill="#F4A0A022" stroke="#F4A0A044" strokeWidth="1"/></svg> },
-  // cloud
-  { id:'c1', x:'20%', y:'82%', size:28, rotate:'-5deg',  dur:'12s',delay:'4s',
-    svg:<svg viewBox="0 0 40 24"><path d="M32 20H10C6.13 20 3 16.87 3 13s3.13-7 7-7c.34 0 .67.03 1 .07C12.29 3.93 15.39 2 19 2c4.97 0 9 4.03 9 9h1c2.76 0 5 2.24 5 5s-2.24 5-5 5z" fill="#C9B8F022" stroke="#C9B8F044" strokeWidth="1"/></svg> },
+  { id:'h1', x:'6%',  y:'10%', size:22, rotate:'-15deg', dur:'7s',  delay:'0s',
+    svg:<svg viewBox="0 0 24 24"><path d="M12 21C12 21 3 14 3 8.5C3 5.42 5.42 3 8.5 3C10.24 3 11.91 3.81 13 5.08C14.09 3.81 15.76 3 17.5 3C20.58 3 23 5.42 23 8.5C23 14 14 21 12 21Z" fill="#D4607A22" stroke="#D4607A55" strokeWidth="1.5"/></svg> },
+  { id:'s1', x:'87%', y:'7%',  size:18, rotate:'20deg',  dur:'9s',  delay:'1s',
+    svg:<svg viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9" fill="#D4920A22" stroke="#D4920A55" strokeWidth="1"/></svg> },
+  { id:'m1', x:'4%',  y:'52%', size:24, rotate:'10deg',  dur:'11s', delay:'2s',
+    svg:<svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 109.79 9.79z" fill="#8B72BE22" stroke="#8B72BE44" strokeWidth="1.5"/></svg> },
+  { id:'f1', x:'91%', y:'42%', size:26, rotate:'-20deg', dur:'8s',  delay:'0.5s',
+    svg:<svg viewBox="0 0 32 32"><circle cx="16" cy="10" r="4" fill="#E8787022"/><circle cx="22" cy="14" r="4" fill="#E8787022"/><circle cx="22" cy="21" r="4" fill="#E8787022"/><circle cx="16" cy="25" r="4" fill="#E8787022"/><circle cx="10" cy="21" r="4" fill="#E8787022"/><circle cx="10" cy="14" r="4" fill="#E8787022"/><circle cx="16" cy="17" r="5" fill="#D4920A33"/></svg> },
+  { id:'sp1',x:'48%', y:'3%',  size:20, rotate:'0deg',   dur:'6s',  delay:'1.5s',
+    svg:<svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="#4BAF8444" strokeWidth="2" strokeLinecap="round"/></svg> },
+  { id:'h2', x:'74%', y:'73%', size:16, rotate:'12deg',  dur:'10s', delay:'3s',
+    svg:<svg viewBox="0 0 24 24"><path d="M12 21C12 21 3 14 3 8.5C3 5.42 5.42 3 8.5 3C10.24 3 11.91 3.81 13 5.08C14.09 3.81 15.76 3 17.5 3C20.58 3 23 5.42 23 8.5C23 14 14 21 12 21Z" fill="#D4607A18" stroke="#D4607A33" strokeWidth="1"/></svg> },
+  { id:'c1', x:'18%', y:'80%', size:32, rotate:'-5deg',  dur:'13s', delay:'4s',
+    svg:<svg viewBox="0 0 40 24"><path d="M32 20H10C6.13 20 3 16.87 3 13s3.13-7 7-7c.34 0 .67.03 1 .07C12.29 3.93 15.39 2 19 2c4.97 0 9 4.03 9 9h1c2.76 0 5 2.24 5 5s-2.24 5-5 5z" fill="#8B72BE18" stroke="#8B72BE33" strokeWidth="1"/></svg> },
+  { id:'dot1',x:'60%',y:'88%', size:10, rotate:'0deg',   dur:'5s',  delay:'2.5s',
+    svg:<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#D4607A33"/></svg> },
+  { id:'dot2',x:'32%',y:'6%',  size:8,  rotate:'0deg',   dur:'7s',  delay:'3.5s',
+    svg:<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#D4920A33"/></svg> },
 ]
 
 function FloatingDoodles() {
@@ -108,13 +93,13 @@ function FloatingDoodles() {
       <style>{`
         @keyframes float {
           0%,100% { transform: translateY(0px) rotate(var(--rot)); }
-          50%      { transform: translateY(-12px) rotate(calc(var(--rot) + 5deg)); }
+          50%      { transform: translateY(-10px) rotate(calc(var(--rot) + 4deg)); }
         }
         @keyframes pulse-soft {
-          0%,100% { opacity: 0.7; }
-          50%      { opacity: 1; }
+          0%,100% { opacity: 0.6; }
+          50%      { opacity: 0.9; }
         }
-        .doodle { animation: float var(--dur) ease-in-out var(--delay) infinite, pulse-soft calc(var(--dur) * 1.3) ease-in-out infinite; }
+        .doodle { animation: float var(--dur) ease-in-out var(--delay) infinite, pulse-soft calc(var(--dur) * 1.4) ease-in-out infinite; }
       `}</style>
       {DOODLES.map(d=>(
         <div key={d.id} className="doodle" style={{
@@ -127,6 +112,66 @@ function FloatingDoodles() {
       ))}
     </div>
   )
+}
+
+// ─── Sticker Picker Modal ─────────────────────────────────────────────────────
+function StickerPicker({ onSelect, onClose }) {
+  const PRESET_STICKERS = ['🌸','💕','🌿','✨','🍀','🌻','🎀','🫧','🍓','🧸','🌈','🎠','🦋','🍵','🌙','⭐','🫶','🎪','🌺','🍡']
+  return (
+    <div onClick={onClose} style={{position:'fixed',inset:0,background:'#3D2B1F55',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:400,padding:20}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:20,padding:22,maxWidth:320,width:'100%',boxShadow:`0 20px 60px ${C.shadow}`}}>
+        <div style={{fontFamily:"'Playfair Display'",fontSize:18,color:C.text,marginBottom:4}}>Add a sticker 🎀</div>
+        <div style={{fontSize:11,color:C.textMid,marginBottom:16}}>Pick an emoji, or upload your own image</div>
+
+        {/* Preset emoji grid */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:6,marginBottom:16}}>
+          {PRESET_STICKERS.map(s=>(
+            <button key={s} onClick={()=>onSelect({type:'emoji',value:s})} style={{
+              background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,
+              padding:'8px 0',fontSize:20,cursor:'pointer',transition:'all 0.15s',
+            }}>{s}</button>
+          ))}
+        </div>
+
+        {/* Image upload */}
+        <label style={{
+          display:'flex',alignItems:'center',justifyContent:'center',gap:8,
+          background:C.bg,border:`2px dashed ${C.border}`,borderRadius:12,
+          padding:'12px',cursor:'pointer',fontSize:12,color:C.textMid,fontWeight:600,
+        }}>
+          <span style={{fontSize:18}}>🖼️</span> Upload your own sticker
+          <input type="file" accept="image/*" style={{display:'none'}} onChange={e=>{
+            const file = e.target.files?.[0]
+            if (!file) return
+            const reader = new FileReader()
+            reader.onload = ev => onSelect({type:'image', value:ev.target.result})
+            reader.readAsDataURL(file)
+          }}/>
+        </label>
+
+        {/* Remove sticker */}
+        <button onClick={()=>onSelect(null)} style={{
+          width:'100%',marginTop:10,background:'none',border:`1px solid ${C.border}`,
+          borderRadius:10,padding:8,fontSize:12,color:C.textDim,cursor:'pointer',
+        }}>Remove sticker</button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Sticker display component ────────────────────────────────────────────────
+function EventSticker({ sticker, size=16 }) {
+  if (!sticker) return (
+    <div style={{
+      width:size, height:size, borderRadius:4, flexShrink:0,
+      border:`1.5px dashed ${C.border}`,
+      background:'transparent', opacity:0.5,
+    }}/>
+  )
+  if (sticker.type === 'image') return (
+    <img src={sticker.value} alt="sticker" style={{width:size,height:size,objectFit:'cover',borderRadius:4,flexShrink:0}}/>
+  )
+  return <span style={{fontSize:size-2,lineHeight:1,flexShrink:0}}>{sticker.value}</span>
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -145,7 +190,9 @@ export default function CalendarPage() {
   const [conflict, setConflict] = useState(null)
   const [saving,   setSaving]   = useState(false)
   const [selectedEvent, setSelectedEvent] = useState(null)
-  const [editForm, setEditForm] = useState(null) // null = view mode, object = edit mode
+  const [editForm, setEditForm] = useState(null)
+  const [stickers, setStickers] = useState({})          // { [eventId]: {type,value} }
+  const [stickerTarget, setStickerTarget] = useState(null) // eventId being stickered
 
   const weekDates  = getWeekDates(navDate)
   const monthDates = getMonthDates(navDate)
@@ -213,6 +260,18 @@ export default function CalendarPage() {
   function closeModal() {
     setSelectedEvent(null)
     setEditForm(null)
+  }
+
+  function handleStickerSelect(sticker) {
+    if (stickerTarget) {
+      setStickers(prev => {
+        const next = { ...prev }
+        if (sticker === null) delete next[stickerTarget]
+        else next[stickerTarget] = sticker
+        return next
+      })
+    }
+    setStickerTarget(null)
   }
 
   function canDelete(ev) {
@@ -410,14 +469,14 @@ export default function CalendarPage() {
                         <div style={{fontSize:12,fontFamily:"'Playfair Display'",fontWeight:600,color:isToday?C.peach:C.text,marginBottom:3}}>{date.getDate()}</div>
                         {dayEvs.slice(0,2).map(ev=>(
                           <div key={ev.id} onClick={e=>{e.stopPropagation();setSelectedEvent(ev)}} style={{
-                            background:eventColor(ev)+'25',
+                            background:eventColor(ev)+'18',
                             border:`1px solid ${eventColor(ev)}44`,
                             borderRadius:5,padding:'1px 5px',marginBottom:2,
                             fontSize:9,color:eventColor(ev),fontWeight:600,
                             whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',
                             display:'flex',alignItems:'center',gap:3,
                           }}>
-                            <span style={{fontSize:8}}>{getEventSticker(ev)}</span>
+                            <EventSticker sticker={stickers[ev.id]} size={10}/>
                             <span style={{overflow:'hidden',textOverflow:'ellipsis'}}>{eventLabel(ev)?.replace(/^💑\s?/,'')}</span>
                           </div>
                         ))}
@@ -450,7 +509,7 @@ export default function CalendarPage() {
                       <div onClick={()=>goToDay(date)} style={{fontSize:20,fontFamily:"'Playfair Display'",color:isToday?C.peach:C.text,marginBottom:7,cursor:'pointer',fontWeight:600}}>{date.getDate()}</div>
                       {dayEvs.map(ev=>(
                         <div key={ev.id} onClick={()=>setSelectedEvent(ev)} style={{
-                          background:eventColor(ev)+'20',
+                          background:eventColor(ev)+'18',
                           border:`1px solid ${eventColor(ev)}44`,
                           borderRadius:7,padding:'3px 6px',marginBottom:3,
                           fontSize:9,color:eventColor(ev),fontWeight:600,
@@ -458,8 +517,10 @@ export default function CalendarPage() {
                           cursor:'pointer',transition:'all 0.15s',
                         }}>
                           <span style={{display:'flex',alignItems:'center',gap:3,overflow:'hidden'}}>
-                            <span style={{fontSize:10,flexShrink:0}}>{getEventSticker(ev)}</span>
-                            <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:52}}>{eventLabel(ev)?.replace(/^💑\s?/,'')}</span>
+                            <span onClick={e=>{e.stopPropagation();setStickerTarget(ev.id)}} title="Add sticker">
+                              <EventSticker sticker={stickers[ev.id]} size={13}/>
+                            </span>
+                            <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:50}}>{eventLabel(ev)?.replace(/^💑\s?/,'')}</span>
                           </span>
                           {canDelete(ev)&&<span onClick={e=>{e.stopPropagation();handleDelete(ev)}} style={{cursor:'pointer',opacity:0.3,flexShrink:0,fontSize:8,marginLeft:2}}>✕</span>}
                         </div>
@@ -506,13 +567,15 @@ export default function CalendarPage() {
                           {isFree&&<div style={{position:'absolute',right:10,top:6,fontSize:9,color:C.gold,opacity:0.6,fontWeight:700}}>✦ both free</div>}
                           {hourEvs.map(ev=>(
                             <div key={ev.id} onClick={()=>setSelectedEvent(ev)} style={{
-                              background:eventColor(ev)+'22',
+                              background:eventColor(ev)+'18',
                               border:`1px solid ${eventColor(ev)}55`,
                               borderRadius:8,padding:'4px 9px',fontSize:10,color:eventColor(ev),
                               display:'flex',flexDirection:'column',gap:2,minWidth:100,cursor:'pointer',
                             }}>
-                              <span style={{fontWeight:700,display:'flex',alignItems:'center',gap:4}}>
-                                <span style={{fontSize:12}}>{getEventSticker(ev)}</span>
+                              <span style={{fontWeight:700,display:'flex',alignItems:'center',gap:5}}>
+                                <span onClick={e=>{e.stopPropagation();setStickerTarget(ev.id)}} title="Add sticker">
+                                  <EventSticker sticker={stickers[ev.id]} size={16}/>
+                                </span>
                                 {eventLabel(ev)?.replace(/^💑\s?/,'')}
                               </span>
                               <span style={{fontSize:8,opacity:0.65}}>{ev.start_time}–{ev.end_time}</span>
@@ -668,7 +731,6 @@ export default function CalendarPage() {
           const isOurs = ev.event_type === 'ours' || ev.title?.startsWith('💑')
           const isPrivatePartner = ev.is_private && ownerOf(ev) === 'partner'
           const editing = editForm !== null
-          const sticker = getEventSticker(ev)
           const minp = { width:'100%',background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,padding:'9px 12px',color:C.text,fontSize:13,outline:'none',boxSizing:'border-box',colorScheme:'dark',fontFamily:'inherit' }
 
           return (
@@ -684,7 +746,14 @@ export default function CalendarPage() {
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:18}}>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:5}}>
-                      <span style={{fontSize:16}}>{sticker}</span>
+                      <button onClick={()=>setStickerTarget(ev.id)} title="Change sticker" style={{
+                        background:C.bg,border:`1.5px dashed ${C.border}`,borderRadius:10,
+                        padding:'6px 8px',cursor:'pointer',display:'flex',alignItems:'center',gap:6,
+                        fontSize:11,color:C.textMid,
+                      }}>
+                        <EventSticker sticker={stickers[ev.id]} size={22}/>
+                        <span style={{fontSize:9}}>+sticker</span>
+                      </button>
                       <span style={{fontSize:10,color:color,textTransform:'uppercase',letterSpacing:'0.07em',fontWeight:700}}>
                         {isOurs ? '💕 For us' : ownerOf(ev)==='you' ? user?.name||'You' : partner?.name||'Partner'}
                       </span>
@@ -808,15 +877,25 @@ export default function CalendarPage() {
             </div>
           </div>
         )}
+        {/* ── Sticker picker ── */}
+        {stickerTarget && (
+          <StickerPicker
+            onSelect={handleStickerSelect}
+            onClose={()=>setStickerTarget(null)}
+          />
+        )}
+
       </main>
       <style>{`
         * { box-sizing:border-box }
+        body { background:#FDF6EE }
         input[type=date]::-webkit-calendar-picker-indicator,
-        input[type=time]::-webkit-calendar-picker-indicator { filter:invert(0.3) sepia(0.3) }
+        input[type=time]::-webkit-calendar-picker-indicator { filter:opacity(0.5) }
         ::-webkit-scrollbar { width:4px }
         ::-webkit-scrollbar-track { background:transparent }
-        ::-webkit-scrollbar-thumb { background:#3A2E2488; border-radius:4px }
+        ::-webkit-scrollbar-thumb { background:#E8D5BC; border-radius:4px }
         * { -webkit-font-smoothing:antialiased }
+        button:hover { filter:brightness(0.97) }
       `}</style>
     </div>
   )
