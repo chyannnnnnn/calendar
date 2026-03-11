@@ -49,8 +49,12 @@ export async function updateEvent(id, changes) {
     _syncStatus: 'pending',
   }
 
+  // Write locally immediately
   await db.events.put(updated)
+
+  // Queue push — store full object so flushQueue can strip local fields
   await db.syncQueue.add({ type: 'upsert', payload: updated, createdAt: Date.now() })
+
   if (navigator.onLine) await flushQueue()
 
   return updated

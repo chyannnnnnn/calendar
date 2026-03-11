@@ -222,19 +222,26 @@ export default function CalendarPage() {
   async function handleSaveEdit() {
     if (!editForm.title || !editForm.date || !editForm.startTime || !editForm.endTime) return
     setSaving(true)
-    const isOurs = selectedEvent.event_type === 'ours' || selectedEvent.title?.startsWith('💑')
-    await updateEvent(selectedEvent.id, {
-      title:      isOurs ? `💑 ${editForm.title}` : editForm.title,
-      date:       editForm.date,
-      start_time: editForm.startTime,
-      end_time:   editForm.endTime,
-      location:   editForm.location,
-      notes:      editForm.notes,
-      is_private: editForm.isPrivate,
-    })
-    setSelectedEvent(null)
-    setEditForm(null)
-    setSaving(false)
+    try {
+      const isOurs = selectedEvent.event_type === 'ours' || selectedEvent.title?.startsWith('💑')
+      const changes = {
+        title:      isOurs ? `💑 ${editForm.title}` : editForm.title,
+        date:       editForm.date,
+        start_time: editForm.startTime,
+        end_time:   editForm.endTime,
+        location:   editForm.location,
+        notes:      editForm.notes,
+        is_private: editForm.isPrivate,
+      }
+      const updated = await updateEvent(selectedEvent.id, changes)
+      // Update modal state immediately so UI reflects the save
+      setSelectedEvent(updated)
+      setEditForm(null)
+    } catch (err) {
+      console.error('[edit] save failed:', err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   function closeModal() {

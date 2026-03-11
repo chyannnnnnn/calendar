@@ -2,8 +2,9 @@ import { supabase } from './supabase'
 import { db } from './db'
 
 // ─── Pull ─────────────────────────────────────────────────────────────────────
-// Fetch ALL accessible events from Supabase (yours + partner's) and reconcile
-// with local Dexie — this is the source of truth.
+// Fetch ALL accessible events from Supabase and reconcile with local Dexie.
+// IMPORTANT: never overwrite rows that are locally pending — they haven't
+// been pushed yet, so remote doesn't have the latest version.
 export async function pullEvents() {
   const { data, error } = await supabase
     .from('events')
@@ -15,40 +16,41 @@ export async function pullEvents() {
     return
   }
 
-  // IDs that should exist locally
+  // IDs of rows still waiting to be pushed — don't overwrite these
+  const pendingIds = new Set(
+    (await db.events.where('_syncStatus').equals('pending').toArray())
+      .map(e => e.id)
+  )
+
+  // Delete stale local rows (partner deleted something, realtime missed it)
   const remoteIds = new Set(data.map(e => e.id))
+  const localSynced = await db.events.where('_syncStatus').equals('synced').toArray()
+  const staleIds = localSynced.filter(e => !remoteIds.has(e.id)).map(e => e.id)
+  if (staleIds.length) await db.events.bulkDelete(staleIds)
 
-  // Delete any local events that no longer exist remotely
-  // (catches partner deletes that realtime missed)
-  const localEvents = await db.events
-    .where('_syncStatus').equals('synced')
-    .toArray()
+  // Upsert remote rows — but skip any that are pending locally
+  const rows = data
+    .filter(e => !pendingIds.has(e.id))
+    .map(e => ({ ...e, _syncStatus: 'synced' }))
 
-  const staleIds = localEvents
-    .filter(e => !remoteIds.has(e.id))
-    .map(e => e.id)
-
-  if (staleIds.length) {
-    await db.events.bulkDelete(staleIds)
-  }
-
-  // Upsert all remote events into local DB
-  const rows = data.map(e => ({ ...e, _syncStatus: 'synced' }))
-  await db.events.bulkPut(rows)
+  if (rows.length) await db.events.bulkPut(rows)
 }
 
 // ─── Push ─────────────────────────────────────────────────────────────────────
 export async function flushQueue() {
-  const queue = await db.syncQueue.toArray()
+  const queue = await db.syncQueue.orderBy('createdAt').toArray()
   if (!queue.length) return
 
   for (const item of queue) {
     try {
       if (item.type === 'upsert') {
-        const { _syncStatus, ...event } = item.payload
-        const { error } = await supabase.from('events').upsert(event)
+        // Strip local-only fields before sending to Supabase
+        const { _syncStatus, created_at, ...rest } = item.payload
+        const { error } = await supabase
+          .from('events')
+          .upsert({ ...rest }, { onConflict: 'id' })
         if (error) throw error
-        await db.events.update(event.id, { _syncStatus: 'synced' })
+        await db.events.update(item.payload.id, { _syncStatus: 'synced' })
 
       } else if (item.type === 'delete') {
         const { error } = await supabase
@@ -67,9 +69,6 @@ export async function flushQueue() {
 }
 
 // ─── Realtime subscription ────────────────────────────────────────────────────
-// Subscribe to ALL event changes (no owner filter) so deletes are never missed.
-// Supabase DELETE payloads need REPLICA IDENTITY FULL to include old.id reliably,
-// so we do a full pull on any DELETE rather than trusting payload.old.id.
 export function subscribeToEvents(onUpdate) {
   return supabase
     .channel('all-events')
@@ -78,11 +77,13 @@ export function subscribeToEvents(onUpdate) {
       { event: '*', schema: 'public', table: 'events' },
       async (payload) => {
         if (payload.eventType === 'DELETE') {
-          // payload.old.id may be undefined without REPLICA IDENTITY FULL
-          // so do a full reconciliation pull to be safe
           await pullEvents()
         } else if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          await db.events.put({ ...payload.new, _syncStatus: 'synced' })
+          // Only apply remote update if we don't have a pending local edit for this row
+          const local = await db.events.get(payload.new.id)
+          if (!local || local._syncStatus !== 'pending') {
+            await db.events.put({ ...payload.new, _syncStatus: 'synced' })
+          }
         }
         onUpdate?.()
       }
@@ -91,12 +92,13 @@ export function subscribeToEvents(onUpdate) {
 }
 
 // ─── Periodic reconciliation ──────────────────────────────────────────────────
-// Poll every 30s as a safety net — catches any changes that slipped past
-// the realtime subscription (e.g. tab was in background, brief disconnect).
+// Flush pending writes FIRST, then pull — ensures remote has our edits
+// before we reconcile, so we never pull back a stale version.
 export function startReconciliationLoop(onUpdate) {
   const interval = setInterval(async () => {
     if (!navigator.onLine) return
-    await pullEvents()
+    await flushQueue()   // push our changes first
+    await pullEvents()   // then pull remote state
     onUpdate?.()
   }, 30_000)
 
