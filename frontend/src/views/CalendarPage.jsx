@@ -368,85 +368,143 @@ export default function CalendarPage() {
       <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet"/>
       <FloatingDoodles/>
 
-      {/* ── Header ── */}
-      <header style={{padding:'16px 24px 0',display:'flex',justifyContent:'space-between',alignItems:'center',position:'relative',zIndex:1}}>
-        <div>
-          <div style={{fontFamily:"'Playfair Display'",fontSize:24,letterSpacing:'-0.5px'}}>
-            us<span style={{color:C.peach}}>.</span>cal
-            <span style={{fontSize:14,marginLeft:8,opacity:0.4}}>🌸</span>
+      {/* ════ NAVBAR ════ */}
+      <nav style={{position:'relative',zIndex:10,background:C.surface,borderBottom:`1px solid ${C.border}`}}>
+
+        {/* ── Row 1: Brand | date nav | user pills | actions ── */}
+        <div style={{
+          padding:'0 16px', height:52,
+          display:'grid',
+          gridTemplateColumns:'auto 1fr auto auto',
+          alignItems:'center', gap:12,
+        }}>
+
+          {/* Brand */}
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <div style={{fontFamily:"'Playfair Display'",fontSize:21,letterSpacing:'-0.5px',lineHeight:1}}>
+              us<span style={{color:C.peach}}>.</span>cal
+            </div>
+            <div style={{width:1,height:16,background:C.border}}/>
+            {syncStatus==='synced'  && <span style={{fontSize:9,color:C.mint,fontWeight:700,letterSpacing:'0.05em'}}>SYNCED</span>}
+            {syncStatus==='syncing' && <span style={{fontSize:9,color:C.peach,fontWeight:700,letterSpacing:'0.05em'}}>SYNCING…</span>}
+            {syncStatus==='offline' && <span style={{fontSize:9,color:C.textDim,fontWeight:700,letterSpacing:'0.05em'}}>OFFLINE</span>}
           </div>
-          <div style={{fontSize:11,marginTop:2}}>
-            {syncStatus==='synced'  && <span style={{color:C.mint}}>✿ synced</span>}
-            {syncStatus==='syncing' && <span style={{color:C.peach}}>✿ syncing…</span>}
-            {syncStatus==='offline' && <span style={{color:C.textDim}}>○ offline — saved locally</span>}
+
+          {/* Date navigator - centred in the grid cell */}
+          <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+            <button onClick={()=>navCal(-1)} style={{background:'none',border:`1px solid ${C.border}`,color:C.textMid,borderRadius:8,width:26,height:26,cursor:'pointer',fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>‹</button>
+            <span style={{fontFamily:"'Playfair Display'",fontSize:13,minWidth:140,textAlign:'center',color:C.text,fontWeight:600,letterSpacing:'-0.2px'}}>{navLabel}</span>
+            <button onClick={()=>navCal(1)}  style={{background:'none',border:`1px solid ${C.border}`,color:C.textMid,borderRadius:8,width:26,height:26,cursor:'pointer',fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>›</button>
+            <button onClick={()=>setNavDate(new Date())} style={{background:'none',border:`1px solid ${C.border}`,color:C.textMid,borderRadius:8,padding:'3px 9px',cursor:'pointer',fontSize:10,fontWeight:700,flexShrink:0,letterSpacing:'0.03em'}}>TODAY</button>
+          </div>
+
+          {/* Profile pills */}
+          <div style={{display:'flex',gap:5,alignItems:'center'}}>
+            {[
+              {key:'you',     label:user?.name||'You',        emoji:'🌿', route:'/profile?view=mine'},
+              {key:'partner', label:partner?.name||'Partner', emoji:'🌷', route:'/profile?view=partner'},
+            ].map(u=>(
+              <button key={u.key} onClick={()=>navigate(u.route)} style={{
+                display:'flex',alignItems:'center',gap:5,
+                background:USER_COLORS[u.key].color+'12',
+                border:`1px solid ${USER_COLORS[u.key].color}44`,
+                borderRadius:20,padding:'5px 11px 5px 8px',
+                fontSize:11,color:USER_COLORS[u.key].color,
+                cursor:'pointer',fontFamily:'inherit',fontWeight:700,
+                transition:'all 0.15s',flexShrink:0,whiteSpace:'nowrap',
+              }}>
+                <span style={{
+                  width:20,height:20,borderRadius:'50%',
+                  background:USER_COLORS[u.key].color+'22',
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  fontSize:11,flexShrink:0,
+                }}>{u.emoji}</span>
+                {u.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Right actions */}
+          <div style={{display:'flex',alignItems:'center',gap:1}}>
+            <button onClick={toggleTheme} title="Toggle theme" style={{
+              background:'none',border:'none',cursor:'pointer',
+              width:32,height:32,borderRadius:8,fontSize:15,
+              display:'flex',alignItems:'center',justifyContent:'center',
+              color:C.textMid,
+            }}>{mode==='light'?'🌙':'☀️'}</button>
+
+            <div style={{width:1,height:16,background:C.border,margin:'0 2px'}}/>
+
+            {isLinked && (
+              <button onClick={handleUnlink} title="Unlink partner" style={{
+                background:'none',border:'none',cursor:'pointer',
+                padding:'0 8px',height:32,borderRadius:8,
+                fontSize:10,color:C.textDim,fontFamily:'inherit',
+                fontWeight:600,letterSpacing:'0.03em',
+              }}>UNLINK</button>
+            )}
+            <button onClick={signOut} style={{
+              background:'none',border:'none',cursor:'pointer',
+              padding:'0 8px',height:32,borderRadius:8,
+              fontSize:10,color:C.textDim,fontFamily:'inherit',
+              fontWeight:600,letterSpacing:'0.03em',
+            }}>SIGN OUT</button>
           </div>
         </div>
-        <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}}>
-          {[
-            {key:'you',     label:user?.name||'You',         emoji:'🌿', route:'/profile?view=mine'},
-            {key:'partner', label:partner?.name||'Partner',  emoji:'🌷', route:'/profile?view=partner'},
-          ].map(u=>(
-            <button key={u.key} onClick={()=>navigate(u.route)} style={{
-              display:'flex',alignItems:'center',gap:5,
-              background:C.surface,border:`1px solid ${USER_COLORS[u.key].color}44`,
-              borderRadius:20,padding:'5px 12px',fontSize:11,
-              color:USER_COLORS[u.key].color,cursor:'pointer',
-              transition:'all 0.15s',fontFamily:'inherit',fontWeight:600,
-            }}>
-              <span style={{fontSize:12}}>{u.emoji}</span>
-              {u.label}
-            </button>
-          ))}
-          {isLinked && (
-            <button onClick={handleUnlink} title="Unlink partner" style={{background:'none',border:`1px solid ${C.border}`,color:C.textDim,fontSize:11,cursor:'pointer',borderRadius:20,padding:'4px 10px'}}>
-              unlink
-            </button>
-          )}
-          <button onClick={toggleTheme} title="Toggle theme" style={{background:C.surface,border:`1px solid ${C.border}`,color:C.textMid,fontSize:15,cursor:'pointer',borderRadius:10,padding:'3px 9px'}}>{mode==='light'?'🌙':'☀️'}</button>
-          <button onClick={signOut} style={{background:'none',border:'none',color:C.textDim,fontSize:11,cursor:'pointer'}}>sign out</button>
-        </div>
-      </header>
 
-      {/* ── Not linked banner ── */}
-      {!isLinked && (
-        <div style={{margin:'12px 24px 0',background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:'10px 16px',fontSize:12,color:C.textMid,display:'flex',alignItems:'center',gap:10,position:'relative',zIndex:1}}>
-          <span>🌻 Connect with your partner to see shared availability.</span>
-          <button onClick={() => navigate('/connect')} style={{background:C.mint,color:C.bg,border:'none',borderRadius:20,padding:'4px 14px',fontSize:11,fontWeight:700,cursor:'pointer'}}>Connect now ✨</button>
-        </div>
-      )}
+        {/* ── Not linked banner ── */}
+        {!isLinked && (
+          <div style={{background:C.mint+'14',borderTop:`1px solid ${C.mint}28`,padding:'7px 16px',fontSize:12,color:C.mint,display:'flex',alignItems:'center',gap:10}}>
+            <span style={{flex:1}}>🌻 Connect with your partner to see shared availability.</span>
+            <button onClick={()=>navigate('/connect')} style={{background:C.mint,color:'#fff',border:'none',borderRadius:20,padding:'4px 14px',fontSize:11,fontWeight:700,cursor:'pointer',flexShrink:0}}>Connect ✨</button>
+          </div>
+        )}
 
-      {/* ── Controls ── */}
-      <div style={{padding:'12px 24px 0',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',position:'relative',zIndex:1}}>
-        <div style={{display:'flex',background:C.surface,border:`1px solid ${C.border}`,borderRadius:22,padding:3,gap:2}}>
-          {['day','week','month'].map(v=>(
-            <button key={v} onClick={()=>setCalView(v)} style={{
-              background:calView===v?C.peach+'33':'transparent',
-              color:calView===v?C.peach:C.textDim,
-              border: calView===v?`1px solid ${C.peach}55`:'1px solid transparent',
-              borderRadius:17,padding:'5px 14px',
-              fontSize:12,fontWeight:calView===v?700:400,cursor:'pointer',
-              textTransform:'capitalize',transition:'all 0.2s',
-            }}>{v}</button>
-          ))}
-        </div>
-        <button onClick={()=>navCal(-1)} style={{background:C.surface,border:`1px solid ${C.border}`,color:C.textMid,borderRadius:10,padding:'5px 12px',cursor:'pointer',fontSize:15}}>‹</button>
-        <span style={{fontFamily:"'Playfair Display'",fontSize:14,minWidth:160,textAlign:'center',color:C.text}}>{navLabel}</span>
-        <button onClick={()=>navCal(1)}  style={{background:C.surface,border:`1px solid ${C.border}`,color:C.textMid,borderRadius:10,padding:'5px 12px',cursor:'pointer',fontSize:15}}>›</button>
-        <button onClick={()=>setNavDate(new Date())} style={{background:C.gold+'22',border:`1px solid ${C.gold}44`,color:C.gold,borderRadius:10,padding:'5px 12px',cursor:'pointer',fontSize:11,fontWeight:600}}>Today ✦</button>
-      </div>
+        {/* ── Row 2: View toggle + tabs ── */}
+        <div style={{
+          borderTop:`1px solid ${C.border}`,
+          padding:'0 16px', height:42,
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+        }}>
+          {/* View toggle */}
+          <div style={{display:'flex',background:C.bg,border:`1px solid ${C.border}`,borderRadius:20,padding:2,gap:1}}>
+            {['day','week','month'].map(v=>(
+              <button key={v} onClick={()=>setCalView(v)} style={{
+                background:calView===v?C.peach:'transparent',
+                color:calView===v?'#fff':C.textDim,
+                border:'none',borderRadius:18,padding:'3px 14px',
+                fontSize:11,fontWeight:calView===v?700:500,
+                cursor:'pointer',textTransform:'capitalize',transition:'all 0.2s',
+                letterSpacing:'0.02em',
+              }}>{v}</button>
+            ))}
+          </div>
 
-      {/* ── Tabs ── */}
-      <div style={{padding:'10px 24px 0',display:'flex',gap:6,position:'relative',zIndex:1}}>
-        {[['calendar','🗓 Calendar'],['free','✦ Free Together'],['add','＋ Add Event']].map(([v,label])=>(
-          <button key={v} onClick={()=>setTab(v)} style={{
-            background:tab===v ? (v==='add'?C.peach:C.mint) : C.surface,
-            color:tab===v?C.bg:C.textMid,
-            border:`1px solid ${tab===v?(v==='add'?C.peach:C.mint)+'88':C.border}`,
-            borderRadius:22,padding:'7px 16px',
-            fontSize:12,fontWeight:tab===v?700:400,cursor:'pointer',transition:'all 0.2s',
-          }}>{label}</button>
-        ))}
-      </div>
+          {/* Tabs */}
+          <div style={{display:'flex',gap:2,alignItems:'center'}}>
+            {[['calendar','🗓 Calendar'],['free','✦ Free Together'],['add','＋ Add']].map(([v,label])=>{
+              const active = tab===v
+              const color  = v==='add'?C.peach:v==='free'?C.gold:C.mint
+              return (
+                <button key={v} onClick={()=>setTab(v)} style={{
+                  background: active ? color : 'transparent',
+                  color: active ? '#fff' : C.textMid,
+                  border: active ? 'none' : 'none',
+                  borderRadius:20, padding:'5px 14px',
+                  fontSize:11, fontWeight:active?700:500,
+                  cursor:'pointer', transition:'all 0.2s',
+                  letterSpacing:'0.02em',
+                  borderBottom: active ? 'none' : 'none',
+                  position:'relative',
+                }}>
+                  {!active && <span style={{position:'absolute',bottom:0,left:'50%',transform:'translateX(-50%)',height:2,width:0,background:color,borderRadius:2,transition:'width 0.2s'}}/>}
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </nav>
 
       {/* ── Main content ── */}
       <main onClick={()=>setConfirmDelete(null)} style={{flex:1,padding:'14px 24px',overflowY:'auto',position:'relative',zIndex:1}}>
@@ -599,6 +657,15 @@ export default function CalendarPage() {
                                 {eventLabel(ev)?.replace(/^💑\s?/,'')}
                               </span>
                               <span style={{fontSize:8,opacity:0.65}}>{ev.start_time}–{ev.end_time}</span>
+                              {ev.location&&(
+                                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.location)}`}
+                                  target="_blank" rel="noopener noreferrer"
+                                  onClick={e=>e.stopPropagation()}
+                                  style={{fontSize:8,color:C.textDim,display:'flex',alignItems:'center',gap:2,textDecoration:'none'}}
+                                  onMouseEnter={e=>e.currentTarget.style.color=C.peach}
+                                  onMouseLeave={e=>e.currentTarget.style.color=C.textDim}
+                                >📍 {ev.location} <span style={{opacity:0.5}}>↗</span></a>
+                              )}
                               {canDelete(ev)&&(
                                 <button onClick={e=>quickDelete(e,ev)} style={{
                                   background: confirmDelete===ev.id ? C.rose : C.bg,
@@ -816,10 +883,22 @@ export default function CalendarPage() {
                       <span>{ev.start_time} – {ev.end_time}</span>
                     </div>
                     {!isPrivatePartner && ev.location && (
-                      <div style={{display:'flex',alignItems:'center',gap:11,fontSize:13,color:C.textMid,background:C.bg,borderRadius:10,padding:'10px 13px'}}>
-                        <span style={{fontSize:16}}>📍</span>
-                        <span>{ev.location}</span>
-                      </div>
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.location)}`}
+                        target="_blank" rel="noopener noreferrer"
+                        style={{
+                          display:'flex',alignItems:'center',gap:11,fontSize:13,
+                          color:C.textMid,background:C.bg,borderRadius:10,padding:'10px 13px',
+                          textDecoration:'none',transition:'all 0.15s',
+                          border:`1px solid transparent`,cursor:'pointer',
+                        }}
+                        onMouseEnter={e=>{e.currentTarget.style.borderColor=C.peach+'55';e.currentTarget.style.color=C.peach}}
+                        onMouseLeave={e=>{e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=C.textMid}}
+                      >
+                        <span style={{fontSize:16,flexShrink:0}}>📍</span>
+                        <span style={{flex:1}}>{ev.location}</span>
+                        <span style={{fontSize:10,opacity:0.5,flexShrink:0}}>↗ maps</span>
+                      </a>
                     )}
                     {!isPrivatePartner && ev.notes && (
                       <div style={{display:'flex',alignItems:'flex-start',gap:11,fontSize:13,color:C.textMid,background:C.bg,borderRadius:10,padding:'10px 13px'}}>
