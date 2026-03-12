@@ -280,6 +280,32 @@ export default function ProfilePage() {
               ))}
             </div>
 
+            {/* ── Notification settings ── */}
+            <div style={{marginTop:20, padding:'14px 16px', background:C.bg, border:`1px solid ${C.border}`, borderRadius:12}}>
+              <div style={{fontSize:13, fontWeight:700, color:C.text, marginBottom:10}}>🔔 Notifications</div>
+              <label style={{display:'flex', alignItems:'center', gap:12, cursor:'pointer'}}>
+                <div
+                  onClick={()=>setDraft(d=>({...d, emailDigest: d.emailDigest===false ? true : false}))}
+                  style={{
+                    width:40, height:22, borderRadius:11, position:'relative', cursor:'pointer', transition:'background 0.2s',
+                    background: draft.emailDigest===false ? C.border : C.mint,
+                    flexShrink:0,
+                  }}
+                >
+                  <div style={{
+                    position:'absolute', top:3, transition:'left 0.2s',
+                    left: draft.emailDigest===false ? 3 : 21,
+                    width:16, height:16, borderRadius:'50%', background:'#fff',
+                    boxShadow:'0 1px 4px rgba(0,0,0,0.2)',
+                  }}/>
+                </div>
+                <div>
+                  <div style={{fontSize:13, fontWeight:600, color:C.text}}>Daily morning digest</div>
+                  <div style={{fontSize:11, color:C.textDim}}>Email at 8am with today's schedule, free time together & countdowns</div>
+                </div>
+              </label>
+            </div>
+
             <div style={{display:'flex', gap:10, marginTop:24, position:'sticky', bottom:16}}>
               <button onClick={cancelEdit} style={{flex:1, background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:12, fontSize:13, fontWeight:700, color:C.textMid, cursor:'pointer', fontFamily:'inherit'}}>
                 Cancel
