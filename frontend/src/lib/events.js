@@ -8,7 +8,7 @@ function generateId() {
 }
 
 // ─── Add event ───────────────────────────────────────────────────────────────
-export async function addEvent({ title, date, startTime, endTime, isPrivate, ownerId, eventType, location, location_obj, notes }) {
+export async function addEvent({ title, date, startTime, endTime, isPrivate, ownerId, eventType, location, notes }) {
   const event = {
     id:           generateId(),
     owner_id:     ownerId,
@@ -19,8 +19,6 @@ export async function addEvent({ title, date, startTime, endTime, isPrivate, own
     is_private:   isPrivate ?? false,
     event_type:   eventType ?? 'mine',
     location:     location || '',
-    location_lat: location_obj?.lat ?? null,
-    location_lng: location_obj?.lng ?? null,
     notes:        notes || '',
     updated_at:   new Date().toISOString(),
     created_at:   new Date().toISOString(),
