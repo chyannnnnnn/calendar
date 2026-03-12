@@ -189,6 +189,15 @@ export default function CalendarPage() {
   const [stickers, setStickers] = useState({})          // { [eventId]: {type,value} }
   const [stickerTarget, setStickerTarget] = useState(null) // eventId being stickered
   const [confirmDelete, setConfirmDelete] = useState(null) // eventId pending quick-delete confirm
+  const [menuOpen, setMenuOpen] = useState(false) // mobile hamburger menu
+
+  // Responsive: detect mobile
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 640)
+  useState(() => {
+    const handler = () => setIsMobile(window.innerWidth < 640)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  })
 
   const weekDates  = getWeekDates(navDate)
   const monthDates = getMonthDates(navDate)
@@ -386,86 +395,98 @@ export default function CalendarPage() {
       {/* ════ NAVBAR ════ */}
       <nav style={{position:'relative',zIndex:10,background:C.surface,borderBottom:`1px solid ${C.border}`}}>
 
-        {/* ── Row 1: Brand | date nav | user pills | actions ── */}
+        {/* ── Main row ── */}
         <div style={{
-          padding:'0 16px', height:52,
-          display:'grid',
-          gridTemplateColumns:'auto 1fr auto auto',
-          alignItems:'center', gap:12,
+          padding:'0 12px', height:52,
+          display:'flex', alignItems:'center', gap:8,
         }}>
 
           {/* Brand */}
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <div style={{fontFamily:"'Playfair Display'",fontSize:21,letterSpacing:'-0.5px',lineHeight:1}}>
-              us<span style={{color:C.peach}}>.</span>cal
+          <div style={{fontFamily:"'Playfair Display'",fontSize:20,letterSpacing:'-0.5px',lineHeight:1,flexShrink:0}}>
+            us<span style={{color:C.peach}}>.</span>cal
+          </div>
+
+          {/* Sync dot */}
+          <div style={{flexShrink:0}}>
+            {syncStatus==='synced'  && <span style={{fontSize:8,color:C.mint,fontWeight:700}}>●</span>}
+            {syncStatus==='syncing' && <span style={{fontSize:8,color:C.peach,fontWeight:700}}>●</span>}
+            {syncStatus==='offline' && <span style={{fontSize:8,color:C.textDim,fontWeight:700}}>●</span>}
+          </div>
+
+          {/* Date navigator - centred */}
+          <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:4}}>
+            <button onClick={()=>navCal(-1)} style={{background:'none',border:`1px solid ${C.border}`,color:C.textMid,borderRadius:8,width:28,height:28,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>‹</button>
+            <span style={{fontFamily:"'Playfair Display'",fontSize:isMobile?11:13,minWidth:isMobile?100:140,textAlign:'center',color:C.text,fontWeight:600}}>{navLabel}</span>
+            <button onClick={()=>navCal(1)}  style={{background:'none',border:`1px solid ${C.border}`,color:C.textMid,borderRadius:8,width:28,height:28,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>›</button>
+          </div>
+
+          {/* Desktop: profile pills */}
+          {!isMobile && (
+            <div style={{display:'flex',gap:5,alignItems:'center',flexShrink:0}}>
+              {[
+                {key:'you',     label:user?.name||'You',        emoji:'🌿', route:'/profile?view=mine'},
+                {key:'partner', label:partner?.name||'Partner', emoji:'🌷', route:'/profile?view=partner'},
+              ].map(u=>(
+                <button key={u.key} onClick={()=>navigate(u.route)} style={{
+                  display:'flex',alignItems:'center',gap:5,
+                  background:USER_COLORS[u.key].color+'12',
+                  border:`1px solid ${USER_COLORS[u.key].color}44`,
+                  borderRadius:20,padding:'4px 10px 4px 7px',
+                  fontSize:11,color:USER_COLORS[u.key].color,
+                  cursor:'pointer',fontFamily:'inherit',fontWeight:700,flexShrink:0,
+                }}>
+                  <span style={{width:18,height:18,borderRadius:'50%',background:USER_COLORS[u.key].color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10}}>{u.emoji}</span>
+                  {u.label}
+                </button>
+              ))}
             </div>
-            <div style={{width:1,height:16,background:C.border}}/>
-            {syncStatus==='synced'  && <span style={{fontSize:9,color:C.mint,fontWeight:700,letterSpacing:'0.05em'}}>SYNCED</span>}
-            {syncStatus==='syncing' && <span style={{fontSize:9,color:C.peach,fontWeight:700,letterSpacing:'0.05em'}}>SYNCING…</span>}
-            {syncStatus==='offline' && <span style={{fontSize:9,color:C.textDim,fontWeight:700,letterSpacing:'0.05em'}}>OFFLINE</span>}
-          </div>
+          )}
 
-          {/* Date navigator - centred in the grid cell */}
-          <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
-            <button onClick={()=>navCal(-1)} style={{background:'none',border:`1px solid ${C.border}`,color:C.textMid,borderRadius:8,width:26,height:26,cursor:'pointer',fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>‹</button>
-            <span style={{fontFamily:"'Playfair Display'",fontSize:13,minWidth:140,textAlign:'center',color:C.text,fontWeight:600,letterSpacing:'-0.2px'}}>{navLabel}</span>
-            <button onClick={()=>navCal(1)}  style={{background:'none',border:`1px solid ${C.border}`,color:C.textMid,borderRadius:8,width:26,height:26,cursor:'pointer',fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>›</button>
-            <button onClick={()=>setNavDate(new Date())} style={{background:'none',border:`1px solid ${C.border}`,color:C.textMid,borderRadius:8,padding:'3px 9px',cursor:'pointer',fontSize:10,fontWeight:700,flexShrink:0,letterSpacing:'0.03em'}}>TODAY</button>
-          </div>
+          {/* Desktop: theme + sign out */}
+          {!isMobile && (
+            <div style={{display:'flex',alignItems:'center',gap:1,flexShrink:0}}>
+              <button onClick={toggleTheme} style={{background:'none',border:'none',cursor:'pointer',width:30,height:30,borderRadius:8,fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',color:C.textMid}}>{mode==='light'?'🌙':'☀️'}</button>
+              {isLinked && <button onClick={handleUnlink} style={{background:'none',border:'none',cursor:'pointer',padding:'0 6px',height:30,fontSize:9,color:C.textDim,fontFamily:'inherit',fontWeight:700,letterSpacing:'0.03em'}}>UNLINK</button>}
+              <button onClick={signOut} style={{background:'none',border:'none',cursor:'pointer',padding:'0 6px',height:30,fontSize:9,color:C.textDim,fontFamily:'inherit',fontWeight:700,letterSpacing:'0.03em'}}>OUT</button>
+            </div>
+          )}
 
-          {/* Profile pills */}
-          <div style={{display:'flex',gap:5,alignItems:'center'}}>
-            {[
-              {key:'you',     label:user?.name||'You',        emoji:'🌿', route:'/profile?view=mine'},
-              {key:'partner', label:partner?.name||'Partner', emoji:'🌷', route:'/profile?view=partner'},
-            ].map(u=>(
-              <button key={u.key} onClick={()=>navigate(u.route)} style={{
-                display:'flex',alignItems:'center',gap:5,
-                background:USER_COLORS[u.key].color+'12',
-                border:`1px solid ${USER_COLORS[u.key].color}44`,
-                borderRadius:20,padding:'5px 11px 5px 8px',
-                fontSize:11,color:USER_COLORS[u.key].color,
-                cursor:'pointer',fontFamily:'inherit',fontWeight:700,
-                transition:'all 0.15s',flexShrink:0,whiteSpace:'nowrap',
-              }}>
-                <span style={{
-                  width:20,height:20,borderRadius:'50%',
-                  background:USER_COLORS[u.key].color+'22',
-                  display:'flex',alignItems:'center',justifyContent:'center',
-                  fontSize:11,flexShrink:0,
-                }}>{u.emoji}</span>
-                {u.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Right actions */}
-          <div style={{display:'flex',alignItems:'center',gap:1}}>
-            <button onClick={toggleTheme} title="Toggle theme" style={{
-              background:'none',border:'none',cursor:'pointer',
-              width:32,height:32,borderRadius:8,fontSize:15,
-              display:'flex',alignItems:'center',justifyContent:'center',
-              color:C.textMid,
-            }}>{mode==='light'?'🌙':'☀️'}</button>
-
-            <div style={{width:1,height:16,background:C.border,margin:'0 2px'}}/>
-
-            {isLinked && (
-              <button onClick={handleUnlink} title="Unlink partner" style={{
-                background:'none',border:'none',cursor:'pointer',
-                padding:'0 8px',height:32,borderRadius:8,
-                fontSize:10,color:C.textDim,fontFamily:'inherit',
-                fontWeight:600,letterSpacing:'0.03em',
-              }}>UNLINK</button>
-            )}
-            <button onClick={signOut} style={{
-              background:'none',border:'none',cursor:'pointer',
-              padding:'0 8px',height:32,borderRadius:8,
-              fontSize:10,color:C.textDim,fontFamily:'inherit',
-              fontWeight:600,letterSpacing:'0.03em',
-            }}>SIGN OUT</button>
-          </div>
+          {/* Mobile: hamburger */}
+          {isMobile && (
+            <button onClick={()=>setMenuOpen(m=>!m)} style={{background:'none',border:`1px solid ${C.border}`,borderRadius:8,width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:C.textMid,fontSize:16,flexShrink:0}}>
+              {menuOpen ? '✕' : '☰'}
+            </button>
+          )}
         </div>
+
+        {/* ── Mobile dropdown menu ── */}
+        {isMobile && menuOpen && (
+          <div style={{background:C.surface,borderTop:`1px solid ${C.border}`,padding:'8px 12px 12px',display:'flex',flexDirection:'column',gap:6}}>
+            {/* Profile pills */}
+            <div style={{display:'flex',gap:6}}>
+              {[
+                {key:'you',     label:user?.name||'You',    emoji:'🌿', route:'/profile?view=mine'},
+                {key:'partner', label:partner?.name||'Partner', emoji:'🌷', route:'/profile?view=partner'},
+              ].map(u=>(
+                <button key={u.key} onClick={()=>{navigate(u.route);setMenuOpen(false)}} style={{
+                  flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:5,
+                  background:USER_COLORS[u.key].color+'12',border:`1px solid ${USER_COLORS[u.key].color}44`,
+                  borderRadius:20,padding:'7px 10px',
+                  fontSize:12,color:USER_COLORS[u.key].color,cursor:'pointer',fontFamily:'inherit',fontWeight:700,
+                }}>
+                  {u.emoji} {u.label}
+                </button>
+              ))}
+            </div>
+            <div style={{display:'flex',gap:6}}>
+              <button onClick={()=>{toggleTheme;setMenuOpen(false)}} style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:'7px',fontSize:13,cursor:'pointer',color:C.textMid}} onClick={toggleTheme}>
+                {mode==='light'?'🌙 Dark':'☀️ Light'}
+              </button>
+              {isLinked && <button onClick={()=>{handleUnlink();setMenuOpen(false)}} style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:'7px',fontSize:11,cursor:'pointer',color:C.textDim,fontWeight:700}}>Unlink 💔</button>}
+              <button onClick={signOut} style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:'7px',fontSize:11,cursor:'pointer',color:C.textDim,fontWeight:700}}>Sign out</button>
+            </div>
+          </div>
+        )}
 
         {/* ── Not linked banner ── */}
         {!isLinked && (
@@ -478,35 +499,36 @@ export default function CalendarPage() {
         {/* ── Row 2: View toggle + tabs ── */}
         <div style={{
           borderTop:`1px solid ${C.border}`,
-          padding:'0 16px', height:42,
-          display:'flex', alignItems:'center', justifyContent:'space-between',
+          padding:`0 ${isMobile?8:16}px`, height:44,
+          display:'flex', alignItems:'center', justifyContent:'space-between', gap:4,
         }}>
           {/* View toggle */}
-          <div style={{display:'flex',background:C.bg,border:`1px solid ${C.border}`,borderRadius:20,padding:2,gap:1}}>
-            {['day','week','month'].map(v=>(
+          <div style={{display:'flex',background:C.bg,border:`1px solid ${C.border}`,borderRadius:20,padding:2,gap:1,flexShrink:0}}>
+            {(isMobile ? ['day','week','month'] : ['day','week','month']).map(v=>(
               <button key={v} onClick={()=>setCalView(v)} style={{
                 background:calView===v?C.peach:'transparent',
                 color:calView===v?'#fff':C.textDim,
-                border:'none',borderRadius:18,padding:'3px 14px',
-                fontSize:11,fontWeight:calView===v?700:500,
+                border:'none',borderRadius:18,
+                padding: isMobile ? '4px 10px' : '3px 14px',
+                fontSize:isMobile?10:11,fontWeight:calView===v?700:500,
                 cursor:'pointer',textTransform:'capitalize',transition:'all 0.2s',
-                letterSpacing:'0.02em',
               }}>{v}</button>
             ))}
           </div>
 
           {/* Tabs */}
-          <div style={{display:'flex',gap:2,alignItems:'center'}}>
-            {[['calendar','🗓 Calendar'],['compare','↔ Compare'],['add','＋ Add']].map(([v,label])=>{
+          <div style={{display:'flex',gap:1,alignItems:'center'}}>
+            {[['calendar', isMobile?'🗓':'🗓 Calendar'],['compare', isMobile?'↔':'↔ Compare'],['add', isMobile?'＋':'＋ Add']].map(([v,label])=>{
               const active = tab===v
               const color  = v==='add'?C.peach:v==='compare'?C.lavender:C.mint
               return (
                 <button key={v} onClick={()=>setTab(v)} style={{
                   background: active ? color : 'transparent',
                   color: active ? '#fff' : C.textMid,
-                  border:'none', borderRadius:20, padding:'5px 14px',
-                  fontSize:11, fontWeight:active?700:500,
-                  cursor:'pointer', transition:'all 0.2s', letterSpacing:'0.02em',
+                  border:'none', borderRadius:20,
+                  padding: isMobile ? '5px 10px' : '5px 14px',
+                  fontSize:isMobile?13:11, fontWeight:active?700:500,
+                  cursor:'pointer', transition:'all 0.2s',
                 }}>
                   {label}
                 </button>
@@ -517,7 +539,7 @@ export default function CalendarPage() {
       </nav>
 
       {/* ── Main content ── */}
-      <main onClick={()=>setConfirmDelete(null)} style={{flex:1,padding:'14px 24px',overflowY: tab==='compare'?'hidden':'auto',display:'flex',flexDirection:'column',position:'relative',zIndex:1}}>
+      <main onClick={()=>setConfirmDelete(null)} style={{flex:1,padding: isMobile ? '10px 10px' : '14px 24px',overflowY: tab==='compare'?'hidden':'auto',display:'flex',flexDirection:'column',position:'relative',zIndex:1}}>
 
         {/* ════ CALENDAR TAB ════ */}
         {tab==='calendar' && (
@@ -569,7 +591,8 @@ export default function CalendarPage() {
 
             {/* WEEK VIEW */}
             {calView==='week' && (
-              <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:6}}>
+              <div style={{overflowX: isMobile ? 'auto' : 'visible', marginLeft: isMobile ? -10 : 0, marginRight: isMobile ? -10 : 0, paddingLeft: isMobile ? 10 : 0, paddingRight: isMobile ? 10 : 0}}>
+              <div style={{display:'grid', gridTemplateColumns:`repeat(7,${isMobile ? 'minmax(110px,1fr)' : '1fr'})`, gap:6, minWidth: isMobile ? 770 : 'unset'}}>
                 {weekDates.map((date,i)=>{
                   const ds=toDateStr(date), isToday=ds===todayStr
                   const dayEvs=eventsForDate(ds)
@@ -617,6 +640,7 @@ export default function CalendarPage() {
                     </div>
                   )
                 })}
+              </div>
               </div>
             )}
 
@@ -763,12 +787,27 @@ export default function CalendarPage() {
               </div>
             </div>
 
-            {[['Title','text','title', addForm.eventType==='ours' ? 'e.g. Dinner date 🍽️' : 'e.g. Gym 🏃'],['Date','date','date',''],['Start time','time','startTime',''],['End time','time','endTime','']].map(([label,type,field,ph])=>(
-              <div key={field} style={{marginBottom:12}}>
-                <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>{label}</label>
-                <input type={type} placeholder={ph} value={addForm[field]} onChange={e=>setAddForm(f=>({...f,[field]:e.target.value}))} style={inp}/>
+            {/* Title */}
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>Title</label>
+              <input type="text" placeholder={addForm.eventType==='ours' ? 'e.g. Dinner date 🍽️' : 'e.g. Gym 🏃'} value={addForm.title} onChange={e=>setAddForm(f=>({...f,title:e.target.value}))} style={inp}/>
+            </div>
+            {/* Date */}
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>Date</label>
+              <input type="date" value={addForm.date} onChange={e=>setAddForm(f=>({...f,date:e.target.value}))} style={inp}/>
+            </div>
+            {/* Start + End time side by side */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+              <div>
+                <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>Start</label>
+                <input type="time" value={addForm.startTime} onChange={e=>setAddForm(f=>({...f,startTime:e.target.value}))} style={inp}/>
               </div>
-            ))}
+              <div>
+                <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>End</label>
+                <input type="time" value={addForm.endTime} onChange={e=>setAddForm(f=>({...f,endTime:e.target.value}))} style={inp}/>
+              </div>
+            </div>
             <div style={{marginBottom:12}}>
               <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>📍 Location <span style={{color:C.textDim,textTransform:'none',letterSpacing:0,fontWeight:400}}>(optional)</span></label>
               <LocationPicker

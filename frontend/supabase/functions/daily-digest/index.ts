@@ -5,15 +5,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // @ts-ignore
-const RESEND_API_KEY       = Deno.env.get('RESEND_API_KEY')!
+const BREVO_API_KEY        = Deno.env.get('BREVO_API_KEY')!
 // @ts-ignore
 const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!
 // @ts-ignore
 const SUPABASE_SERVICE_KEY = Deno.env.get('SERVICE_ROLE_KEY')! 
 // @ts-ignore
-const FROM_EMAIL           = Deno.env.get('FROM_EMAIL')!
+const FROM_EMAIL           = Deno.env.get('FROM_EMAIL')! 
 // @ts-ignore
-const APP_URL              = Deno.env.get('APP_URL')!
+const APP_URL              = Deno.env.get('APP_URL')! 
 
 function toDateStr(d: Date): string { return d.toISOString().slice(0, 10) }
 
@@ -232,14 +232,14 @@ Deno.serve(async (req: Request) => {
         oursToday, oursTomorrow, freeToday, countdowns, appUrl: APP_URL,
       })
 
-      const res = await fetch('https://api.resend.com/emails', {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
-        headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${RESEND_API_KEY}` },
+        headers: { 'Content-Type':'application/json', 'api-key': BREVO_API_KEY },
         body: JSON.stringify({
-          from:    FROM_EMAIL,
-          to:      me.email,
+          sender:  { email: FROM_EMAIL },
+          to:      [{ email: me.email, name: me.display_name || me.email }],
           subject: `🌿 Your day with ${them?.display_name||'your partner'} — ${todayStr}`,
-          html,
+          htmlContent: html,
         }),
       })
 
