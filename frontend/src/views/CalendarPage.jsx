@@ -550,7 +550,7 @@ export default function CalendarPage() {
       </nav>
 
       {/* ── Main content ── */}
-      <main onClick={()=>setConfirmDelete(null)} style={{flex:1,padding: isMobile ? '10px 10px' : '14px 24px',overflowY: tab==='compare'?'hidden':'auto',display:'flex',flexDirection:'column',position:'relative',zIndex:1}}>
+      <main onClick={()=>setConfirmDelete(null)} style={{flex:1,padding: isMobile ? '10px 10px' : '14px 24px',overflowY: tab==='compare'?'hidden':'auto',display:'flex',flexDirection:'column',position:'relative',zIndex:1,scrollBehavior:'smooth',WebkitOverflowScrolling:'touch'}}>
 
         {/* ════ CALENDAR TAB ════ */}
         {tab==='calendar' && (
@@ -782,17 +782,25 @@ export default function CalendarPage() {
           <div onClick={()=>setShowAddModal(false)} style={{
             position:'fixed',inset:0,zIndex:200,
             background:'rgba(0,0,0,0.55)',backdropFilter:'blur(6px)',
-            display:'flex',alignItems:'flex-end',justifyContent:'center',
-            padding:isMobile?'0':'20px',
+            display:'flex',
+            alignItems: isMobile ? 'flex-end' : 'center',
+            justifyContent:'center',
+            padding: isMobile ? '0' : '24px',
           }}>
             <div onClick={e=>e.stopPropagation()} style={{
-              width:'100%', maxWidth:460,
-              background:C.surface, borderRadius: isMobile ? '24px 24px 0 0' : 24,
-              padding:'24px 22px 32px',
-              maxHeight:isMobile?'92vh':'85vh', overflowY:'auto',
-              boxShadow:'0 -8px 40px rgba(0,0,0,0.35)',
+              width:'100%', maxWidth:480,
+              background:C.surface,
+              borderRadius: isMobile ? '24px 24px 0 0' : 20,
+              padding: isMobile ? '20px 20px 0 20px' : '28px 28px 28px',
+              maxHeight: isMobile ? 'calc(100vh - 80px)' : 'calc(100vh - 80px)',
+              display:'flex', flexDirection:'column',
+              boxShadow:'0 -8px 48px rgba(0,0,0,0.35)',
             }}>
-              {isMobile && <div style={{width:36,height:4,borderRadius:2,background:C.border,margin:'-8px auto 18px'}}/>}
+              {/* Drag handle */}
+              {isMobile && <div style={{width:40,height:4,borderRadius:2,background:C.border,margin:'0 auto 18px',flexShrink:0}}/>}
+              {/* Scrollable content */}
+              <div style={{overflowY:'auto',flex:1,paddingBottom: isMobile ? 'max(24px, env(safe-area-inset-bottom))' : '4px', scrollbarWidth:'none'}}>
+              <style>{`.modal-scroll::-webkit-scrollbar{display:none}`}</style>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
                 <div style={{fontFamily:"'Playfair Display'",fontSize:20,color:C.text,fontWeight:600}}>
                   {addForm.eventType==='ours' ? '💕 New shared event' : '🌿 New event'}
@@ -882,11 +890,13 @@ export default function CalendarPage() {
                 color:'#fff', border:'none', borderRadius:14, padding:'14px',
                 fontSize:15, fontWeight:700, cursor:'pointer', opacity:saving?0.6:1,
                 boxShadow:`0 4px 16px ${addForm.eventType==='ours'?C.lavender:C.mint}44`,
+                marginTop:4,
               }}>
                 {saving ? '✿ Saving…' : addForm.recurring!=='none'&&addForm.recurUntil
                   ? `✿ Create ${getRecurringDates(addForm.date,addForm.recurring,addForm.recurUntil).length} events`
                   : addForm.eventType==='ours' ? '💕 Add shared event' : '✿ Add event'}
               </button>
+              </div>{/* end scroll wrapper */}
             </div>
           </div>
         )}
@@ -898,9 +908,28 @@ export default function CalendarPage() {
           const loc = parseLocation(ev.location)
           const isEditing = !!editForm
           return (
-            <div onClick={closeModal} style={{position:'fixed',inset:0,zIndex:300,background:'rgba(0,0,0,0.55)',backdropFilter:'blur(6px)',display:'flex',alignItems:'flex-end',justifyContent:'center',padding:isMobile?0:20}}>
-              <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:460,background:C.surface,borderRadius:isMobile?'24px 24px 0 0':24,padding:'22px 20px 28px',maxHeight:isMobile?'88vh':'85vh',overflowY:'auto',boxShadow:'0 -8px 40px rgba(0,0,0,0.3)'}}>
+            <div onClick={closeModal} style={{
+              position:'fixed', inset:0, zIndex:300,
+              background:'rgba(0,0,0,0.55)', backdropFilter:'blur(6px)',
+              display:'flex',
+              alignItems: isMobile ? 'flex-end' : 'center',
+              justifyContent:'center',
+              padding: isMobile ? '0' : '24px',
+            }}>
+              <div onClick={e=>e.stopPropagation()} style={{
+                width:'100%', maxWidth:480,
+                background:C.surface,
+                borderRadius: isMobile ? '24px 24px 0 0' : 20,
+                padding: isMobile ? '20px 20px 0 20px' : '28px',
+                maxHeight: isMobile ? 'calc(100vh - 80px)' : 'calc(100vh - 80px)',
+                display:'flex', flexDirection:'column',
+                boxShadow:'0 -8px 48px rgba(0,0,0,0.3)',
+              }}>
                 {isMobile && <div style={{width:36,height:4,borderRadius:2,background:C.border,margin:'-6px auto 16px'}}/>}
+                {/* Drag handle */}
+                {isMobile && <div style={{width:40,height:4,borderRadius:2,background:C.border,margin:'0 auto 18px',flexShrink:0}}/>}
+                {/* Scrollable body */}
+                <div style={{overflowY:'auto',flex:1,paddingBottom:'max(24px, env(safe-area-inset-bottom))',scrollbarWidth:'none',WebkitOverflowScrolling:'touch'}}>
                 {/* Header */}
                 <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14}}>
                   <div style={{flex:1,minWidth:0}}>
@@ -972,6 +1001,7 @@ export default function CalendarPage() {
                     fontSize:13, color:C.rose, cursor:'pointer', fontFamily:'inherit', fontWeight:600,
                   }}>🗑 Delete event</button>
                 )}
+                </div>{/* end scroll wrapper */}
               </div>
             </div>
           )
