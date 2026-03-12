@@ -12,7 +12,7 @@ function loadGoogleMaps(apiKey) {
       reject(new Error('AUTH_FAILURE'))
     }
     const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`
     script.async = true
     script.onload  = () => {
       // Give gm_authFailure a moment to fire if auth fails
@@ -37,7 +37,7 @@ export default function LocationPicker({ value, onChange, apiKey, readOnly = fal
   const mapRef      = useRef(null)
   const markerRef   = useRef(null)
   const geocoderRef = useRef(null)
-  const acRef       = useRef(null)
+
   const tokenRef    = useRef(null)
 
   // When modal opens: reset local state and load SDK
@@ -60,7 +60,7 @@ export default function LocationPicker({ value, onChange, apiKey, readOnly = fal
       if (!mapDivRef.current || mapRef.current) return
       const G      = window.google.maps
       geocoderRef.current = new G.Geocoder()
-      acRef.current       = new G.places.AutocompleteService()
+      // AutocompleteService is legacy — use AutocompleteSuggestion (new API)
       tokenRef.current    = new G.places.AutocompleteSessionToken()
 
       const center = value?.lat ? { lat: value.lat, lng: value.lng } : { lat: 5.4141, lng: 100.3288 }
@@ -106,20 +106,29 @@ export default function LocationPicker({ value, onChange, apiKey, readOnly = fal
     })
   }
 
-  // Autocomplete with debounce
+  // Autocomplete with debounce — uses new AutocompleteSuggestion API
   useEffect(() => {
-    if (!query || !acRef.current) { setSugs([]); return }
-    const t = setTimeout(() => {
-      acRef.current.getPlacePredictions(
-        { input: query, sessionToken: tokenRef.current },
-        (preds, st) => {
-          const OK = window.google?.maps?.places?.PlacesServiceStatus?.OK
-          setSugs(st === OK && preds ? preds : [])
-        }
-      )
+    if (!query || status !== 'ready') { setSugs([]); return }
+    const t = setTimeout(async () => {
+      try {
+        const { AutocompleteSuggestion, AutocompleteSessionToken } = window.google.maps.places
+        if (!tokenRef.current) tokenRef.current = new AutocompleteSessionToken()
+        const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
+          input: query,
+          sessionToken: tokenRef.current,
+        })
+        setSugs(suggestions.map(s => ({
+          place_id: s.placePrediction.placeId,
+          description: s.placePrediction.text.text,
+          main_text: s.placePrediction.mainText?.text || '',
+          secondary_text: s.placePrediction.secondaryText?.text || '',
+        })))
+      } catch {
+        setSugs([])
+      }
     }, 280)
     return () => clearTimeout(t)
-  }, [query])
+  }, [query, status])
 
   function selectSuggestion(placeId, description) {
     setSugs([])
@@ -132,6 +141,7 @@ export default function LocationPicker({ value, onChange, apiKey, readOnly = fal
         mapRef.current?.setZoom(16)
         setPinned({ name: description, lat, lng })
         tokenRef.current = new window.google.maps.places.AutocompleteSessionToken()
+        setSugs([])
       }
     })
   }
@@ -251,10 +261,10 @@ export default function LocationPicker({ value, onChange, apiKey, readOnly = fal
                         <span style={{fontSize:14,flexShrink:0}}>📍</span>
                         <div style={{minWidth:0}}>
                           <div style={{fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                            {s.structured_formatting?.main_text || s.description}
+                            {s.main_text || s.description}
                           </div>
                           <div style={{fontSize:11,color:C.textDim,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                            {s.structured_formatting?.secondary_text}
+                            {s.secondary_text}
                           </div>
                         </div>
                       </div>
