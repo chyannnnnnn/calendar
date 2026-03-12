@@ -9,6 +9,19 @@ import LocationPicker from '../components/LocationPicker'
 const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
+
+// Parse location stored in DB — could be JSON {name,lat,lng} or a plain string (legacy)
+function parseLocation(raw) {
+  if (!raw) return null
+  if (typeof raw === 'object') return raw
+  try { return JSON.parse(raw) } catch { return { name: raw, lat: null, lng: null } }
+}
+// Serialize location to store in DB
+function serializeLocation(loc) {
+  if (!loc) return ''
+  return JSON.stringify(loc)
+}
+
 function toDateStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
@@ -215,7 +228,7 @@ export default function CalendarPage() {
       date:      ev.date || '',
       startTime: ev.start_time || '',
       endTime:   ev.end_time || '',
-      location:  ev.location_obj || (ev.location ? {name:ev.location,lat:null,lng:null} : null),
+      location:  parseLocation(ev.location),
       notes:     ev.notes || '',
       isPrivate: ev.is_private || false,
     })
@@ -231,8 +244,7 @@ export default function CalendarPage() {
         date:       editForm.date,
         start_time: editForm.startTime,
         end_time:   editForm.endTime,
-        location:   editForm.location?.name || '',
-        location_obj: editForm.location || null,
+        location:   serializeLocation(editForm.location),
         notes:      editForm.notes,
         is_private: editForm.isPrivate,
       }
@@ -312,8 +324,7 @@ export default function CalendarPage() {
         endTime:   addForm.endTime,
         isPrivate: addForm.isPrivate,
         eventType: addForm.eventType,
-        location:  addForm.location?.name || '',
-        location_obj: addForm.location || null,
+        location:  serializeLocation(addForm.location),
         notes:     addForm.notes,
       })
     }
@@ -660,15 +671,16 @@ export default function CalendarPage() {
                                 {eventLabel(ev)?.replace(/^💑\s?/,'')}
                               </span>
                               <span style={{fontSize:8,opacity:0.65}}>{ev.start_time}–{ev.end_time}</span>
-                              {ev.location&&(
-                                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.location)}`}
-                                  target="_blank" rel="noopener noreferrer"
-                                  onClick={e=>e.stopPropagation()}
+                              {ev.location&&(()=>{
+                                const loc=parseLocation(ev.location)
+                                if(!loc?.name) return null
+                                const mapsUrl=loc.lat?`https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lng}`:`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.name)}`
+                                return <a href={mapsUrl} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()}
                                   style={{fontSize:8,color:C.textDim,display:'flex',alignItems:'center',gap:2,textDecoration:'none'}}
                                   onMouseEnter={e=>e.currentTarget.style.color=C.peach}
                                   onMouseLeave={e=>e.currentTarget.style.color=C.textDim}
-                                >📍 {ev.location} <span style={{opacity:0.5}}>↗</span></a>
-                              )}
+                                >📍 {loc.name} <span style={{opacity:0.5}}>↗</span></a>
+                              })()}
                               {canDelete(ev)&&(
                                 <button onClick={e=>quickDelete(e,ev)} style={{
                                   background: confirmDelete===ev.id ? C.rose : C.bg,
@@ -889,9 +901,9 @@ export default function CalendarPage() {
                       <span style={{fontSize:16}}>🕐</span>
                       <span>{ev.start_time} – {ev.end_time}</span>
                     </div>
-                    {!isPrivatePartner && (ev.location_obj || ev.location) && (
+                    {!isPrivatePartner && ev.location && (
                       <LocationPicker
-                        value={ev.location_obj || (ev.location ? {name:ev.location,lat:null,lng:null} : null)}
+                        value={parseLocation(ev.location)}
                         readOnly
                       />
                     )}
