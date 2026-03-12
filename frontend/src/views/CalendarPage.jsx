@@ -190,6 +190,7 @@ export default function CalendarPage() {
   const [stickerTarget, setStickerTarget] = useState(null) // eventId being stickered
   const [confirmDelete, setConfirmDelete] = useState(null) // eventId pending quick-delete confirm
   const [menuOpen, setMenuOpen] = useState(false) // mobile hamburger menu
+  const [showAddModal, setShowAddModal] = useState(false)
 
   // Responsive: detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640)
@@ -517,10 +518,10 @@ export default function CalendarPage() {
           </div>
 
           {/* Tabs */}
-          <div style={{display:'flex',gap:1,alignItems:'center'}}>
-            {[['calendar', isMobile?'🗓':'🗓 Calendar'],['compare', isMobile?'↔':'↔ Compare'],['add', isMobile?'＋':'＋ Add']].map(([v,label])=>{
+          <div style={{display:'flex',gap:1,alignItems:'center',gap:4}}>
+            {[['calendar', isMobile?'🗓':'🗓 Calendar'],['compare', isMobile?'↔':'↔ Compare']].map(([v,label])=>{
               const active = tab===v
-              const color  = v==='add'?C.peach:v==='compare'?C.lavender:C.mint
+              const color  = v==='compare'?C.lavender:C.mint
               return (
                 <button key={v} onClick={()=>setTab(v)} style={{
                   background: active ? color : 'transparent',
@@ -535,6 +536,16 @@ export default function CalendarPage() {
               )
             })}
           </div>
+          <button onClick={()=>{setAddForm({title:'',date:toDateStr(new Date()),startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:'',eventType:'mine',location:null,notes:''});setShowAddModal(true)}} style={{
+            background:C.peach, color:'#fff', border:'none', borderRadius:20,
+            padding: isMobile ? '5px 12px' : '5px 16px',
+            fontSize:isMobile?16:13, fontWeight:700, cursor:'pointer',
+            display:'flex',alignItems:'center',gap:4, flexShrink:0,
+            boxShadow:`0 2px 8px ${C.peach}55`,
+          }}>
+            <span style={{fontSize:isMobile?16:14}}>＋</span>
+            {!isMobile && 'Add'}
+          </button>
         </div>
       </nav>
 
@@ -547,41 +558,48 @@ export default function CalendarPage() {
             {/* MONTH VIEW */}
             {calView==='month' && (
               <div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:6}}>
-                  {DAYS.map(d=><div key={d} style={{textAlign:'center',fontSize:10,color:C.textDim,padding:'4px 0',textTransform:'uppercase',letterSpacing:'0.07em',fontWeight:700}}>{d}</div>)}
+                {/* Day headers */}
+                <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:isMobile?2:4,marginBottom:isMobile?4:8}}>
+                  {(isMobile?['S','M','T','W','T','F','S']:DAYS).map((d,i)=>(
+                    <div key={i} style={{textAlign:'center',fontSize:isMobile?10:11,color:C.textDim,padding:'4px 0',textTransform:'uppercase',letterSpacing:'0.06em',fontWeight:700}}>{d}</div>
+                  ))}
                 </div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3}}>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:isMobile?3:5}}>
                   {monthDates.map(({date,inMonth},i)=>{
                     const ds=toDateStr(date), isToday=ds===todayStr
                     const dayEvs=eventsForDate(ds)
                     const freeSlots=findFreeSlots(ds)
                     const hasOurs = dayEvs.some(e=>e.event_type==='ours'||e.title?.startsWith('💑'))
                     return (
-                      <div key={i} onClick={()=>inMonth&&goToDay(date)} style={{
-                        background: isToday ? C.surfaceHi : C.surface,
-                        border:`1px solid ${isToday ? C.peach+'66' : hasOurs ? C.lavender+'44' : C.border}`,
-                        borderRadius:10,padding:'7px 6px',minHeight:76,
-                        opacity:inMonth?1:0.2,cursor:inMonth?'pointer':'default',
-                        transition:'all 0.15s',position:'relative',overflow:'hidden',
-                      }}>
-                        {/* corner doodle for today */}
-                        {isToday && <div style={{position:'absolute',top:3,right:4,fontSize:9,opacity:0.5}}>✿</div>}
-                        <div style={{fontSize:12,fontFamily:"'Playfair Display'",fontWeight:600,color:isToday?C.peach:C.text,marginBottom:3}}>{date.getDate()}</div>
-                        {dayEvs.slice(0,2).map(ev=>(
+                      <div key={i}
+                        onClick={()=>inMonth&&goToDay(date)}
+                        style={{
+                          background: isToday ? C.peach+'11' : C.surface,
+                          border:`1.5px solid ${isToday ? C.peach+'88' : hasOurs ? C.lavender+'55' : C.border}`,
+                          borderRadius:isMobile?10:14, padding:isMobile?'8px 5px':'10px 8px',
+                          minHeight:isMobile?68:90,
+                          opacity:inMonth?1:0.25, cursor:inMonth?'pointer':'default',
+                          transition:'all 0.15s', position:'relative', overflow:'hidden',
+                        }}>
+                        {isToday && <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${C.peach}00,${C.peach},${C.peach}00)`,borderRadius:'14px 14px 0 0'}}/>}
+                        <div style={{
+                          fontSize:isMobile?15:18, fontFamily:"'Playfair Display'", fontWeight:600,
+                          color:isToday?C.peach:C.text, marginBottom:isMobile?3:5,
+                          lineHeight:1,
+                        }}>{date.getDate()}</div>
+                        {dayEvs.slice(0, isMobile?1:3).map(ev=>(
                           <div key={ev.id} onClick={e=>{e.stopPropagation();setSelectedEvent(ev)}} style={{
-                            background:eventColor(ev)+'18',
-                            border:`1px solid ${eventColor(ev)}44`,
-                            borderRadius:5,padding:'1px 5px',marginBottom:2,
-                            fontSize:9,color:eventColor(ev),fontWeight:600,
-                            whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',
-                            display:'flex',alignItems:'center',gap:3,
+                            background:eventColor(ev)+'20',
+                            borderLeft:`3px solid ${eventColor(ev)}`,
+                            borderRadius:'0 5px 5px 0', padding:isMobile?'1px 4px':'2px 6px', marginBottom:2,
+                            fontSize:isMobile?9:10, color:eventColor(ev), fontWeight:600,
+                            whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
                           }}>
-                            <EventSticker sticker={stickers[ev.id]} size={10} C={C}/>
-                            <span style={{overflow:'hidden',textOverflow:'ellipsis'}}>{eventLabel(ev)?.replace(/^💑\s?/,'')}</span>
+                            {eventLabel(ev)?.replace(/^💑\s?/,'')}
                           </div>
                         ))}
-                        {dayEvs.length>2&&<div style={{fontSize:8,color:C.textDim}}>+{dayEvs.length-2} more</div>}
-                        {inMonth&&freeSlots.length>0&&<div style={{fontSize:9,color:C.gold,marginTop:2}}>✦</div>}
+                        {dayEvs.length>(isMobile?1:3) && <div style={{fontSize:9,color:C.textDim,fontWeight:600}}>+{dayEvs.length-(isMobile?1:3)}</div>}
+                        {inMonth&&freeSlots.length>0 && <div style={{position:'absolute',bottom:4,right:5,fontSize:9,color:C.gold,fontWeight:700}}>✦</div>}
                       </div>
                     )
                   })}
@@ -599,44 +617,44 @@ export default function CalendarPage() {
                   const freeSlots=findFreeSlots(ds)
                   const hasOurs = dayEvs.some(e=>e.event_type==='ours'||e.title?.startsWith('💑'))
                   return (
-                    <div key={i} style={{
-                      background:isToday?C.surfaceHi:C.surface,
-                      border:`1px solid ${isToday?C.peach+'55':hasOurs?C.lavender+'33':C.border}`,
-                      borderRadius:14,padding:'11px 9px',minHeight:130,
-                      position:'relative',overflow:'hidden',
-                    }}>
-                      {isToday && <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,${C.peach}00,${C.peach}88,${C.peach}00)`}}/>}
-                      <div style={{fontSize:10,color:C.textDim,marginBottom:2,textTransform:'uppercase',letterSpacing:'0.07em',fontWeight:700}}>{DAYS[date.getDay()]}</div>
-                      <div onClick={()=>goToDay(date)} style={{fontSize:20,fontFamily:"'Playfair Display'",color:isToday?C.peach:C.text,marginBottom:7,cursor:'pointer',fontWeight:600}}>{date.getDate()}</div>
+                    <div key={i}
+                      onClick={()=>goToDay(date)}
+                      style={{
+                        background:isToday?C.peach+'11':C.surface,
+                        border:`1.5px solid ${isToday?C.peach+'88':hasOurs?C.lavender+'55':C.border}`,
+                        borderRadius:14, padding:'12px 10px', minHeight:160,
+                        position:'relative', overflow:'hidden', cursor:'pointer',
+                        transition:'border-color 0.15s',
+                      }}>
+                      {isToday && <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${C.peach}00,${C.peach},${C.peach}00)`}}/>}
+                      <div style={{fontSize:10,color:isToday?C.peach:C.textDim,marginBottom:3,textTransform:'uppercase',letterSpacing:'0.07em',fontWeight:700}}>{DAYS[date.getDay()]}</div>
+                      <div style={{fontSize:26,fontFamily:"'Playfair Display'",color:isToday?C.peach:C.text,marginBottom:8,fontWeight:600,lineHeight:1}}>{date.getDate()}</div>
                       {dayEvs.map(ev=>(
-                        <div key={ev.id} onClick={()=>setSelectedEvent(ev)} style={{
-                          background:eventColor(ev)+'18',
-                          border:`1px solid ${eventColor(ev)}44`,
-                          borderRadius:7,padding:'3px 6px',marginBottom:3,
-                          fontSize:9,color:eventColor(ev),fontWeight:600,
-                          display:'flex',justifyContent:'space-between',alignItems:'center',
-                          cursor:'pointer',transition:'all 0.15s',
+                        <div key={ev.id} onClick={e=>{e.stopPropagation();setSelectedEvent(ev)}} style={{
+                          background:eventColor(ev)+'20',
+                          borderLeft:`3px solid ${eventColor(ev)}`,
+                          borderRadius:'0 7px 7px 0', padding:'3px 7px', marginBottom:3,
+                          fontSize:10, color:eventColor(ev), fontWeight:600,
+                          display:'flex', justifyContent:'space-between', alignItems:'center',
+                          cursor:'pointer', transition:'all 0.15s',
                         }}>
-                          <span style={{display:'flex',alignItems:'center',gap:3,overflow:'hidden'}}>
-                            <span onClick={e=>{e.stopPropagation();setStickerTarget(ev.id)}} title="Add sticker">
-                              <EventSticker sticker={stickers[ev.id]} size={13} C={C}/>
-                            </span>
-                            <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:50}}>{eventLabel(ev)?.replace(/^💑\s?/,'')}</span>
+                          <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1,fontSize:10}}>
+                            {eventLabel(ev)?.replace(/^💑\s?/,'')}
                           </span>
                           {canDelete(ev)&&(
                             <button onClick={e=>quickDelete(e,ev)} style={{
                               background: confirmDelete===ev.id ? C.rose : 'transparent',
-                              border: 'none', borderRadius:4, cursor:'pointer', flexShrink:0,
+                              border:'none', borderRadius:4, cursor:'pointer', flexShrink:0,
                               fontSize:10, padding:'1px 4px', marginLeft:2,
                               color: confirmDelete===ev.id ? '#fff' : C.rose,
                               fontWeight:700, transition:'all 0.15s', fontFamily:'inherit',
-                            }} title="Delete">
-                              {confirmDelete===ev.id ? '✓ sure?' : '🗑'}
+                            }}>
+                              {confirmDelete===ev.id ? '✓?' : '🗑'}
                             </button>
                           )}
                         </div>
                       ))}
-                      {freeSlots.length>0&&<div style={{marginTop:4,fontSize:8,color:C.gold,background:C.gold+'18',border:`1px solid ${C.gold}33`,borderRadius:6,padding:'2px 5px',fontWeight:600}}>✦ {freeSlots.length} free</div>}
+                      {freeSlots.length>0 && <div style={{marginTop:5,fontSize:9,color:C.gold,fontWeight:700}}>✦ {freeSlots.length} free slot{freeSlots.length>1?'s':''}</div>}
                     </div>
                   )
                 })}
@@ -671,9 +689,9 @@ export default function CalendarPage() {
                     const isFree=freeSlots.some(([s,e])=>s<=hour*60&&e>=(hour+1)*60)
                     const hourEvs=dayEvs.filter(e=>timeToMins(e.start_time)<(hour+1)*60&&timeToMins(e.end_time)>hour*60&&timeToMins(e.start_time)>=hour*60)
                     return (
-                      <div key={hour} style={{display:'flex',minHeight:52,borderBottom:`1px solid ${C.border}`,background:isFree?C.gold+'08':'transparent'}}>
-                        <div style={{width:46,flexShrink:0,padding:'5px 8px',fontSize:9,color:C.textDim,borderRight:`1px solid ${C.border}`,textAlign:'right',paddingTop:8,fontWeight:600}}>
-                          {String(hour).padStart(2,'0')}:00
+                      <div key={hour} style={{display:'flex',minHeight:isMobile?52:64,borderBottom:`1px solid ${C.border}`,background:isFree?C.gold+'08':'transparent'}}>
+                        <div style={{width:isMobile?44:56,flexShrink:0,padding:'8px 8px 8px 4px',fontSize:isMobile?9:11,color:C.textDim,borderRight:`1px solid ${C.border}`,textAlign:'right',fontWeight:600}}>
+                          {String(hour%12||12).padStart(2,'0')}{hour<12?'am':'pm'}
                         </div>
                         <div style={{flex:1,padding:'5px 10px',display:'flex',gap:6,flexWrap:'wrap',position:'relative'}}>
                           {isFree&&<div style={{position:'absolute',right:10,top:6,fontSize:9,color:C.gold,opacity:0.6,fontWeight:700}}>✦ both free</div>}
@@ -751,296 +769,224 @@ export default function CalendarPage() {
                   date:      prefill.date||'',
                   eventType: prefill.eventType||'mine',
                 }))
-                setTab('add')
+                setShowAddModal(true)
               }}
             />
           </div>
         )}
 
-        {/* ════ ADD EVENT TAB ════ */}
-        {tab==='add' && (
-          <div style={{maxWidth:380}}>
-            <div style={{fontFamily:"'Playfair Display'",fontSize:22,marginBottom:18,color:C.text}}>New Event 🌸</div>
-            <div style={{marginBottom:16}}>
-              <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:8,fontWeight:700}}>This event is for</label>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                <button onClick={()=>setAddForm(f=>({...f,eventType:'mine',isPrivate:false}))} style={{
-                  background: addForm.eventType==='mine' ? C.mint+'22' : C.surface,
-                  border: `1px solid ${addForm.eventType==='mine' ? C.mint : C.border}`,
-                  color: addForm.eventType==='mine' ? C.mint : C.textDim,
-                  borderRadius:12, padding:'12px 10px', cursor:'pointer', textAlign:'left',transition:'all 0.2s',
-                }}>
-                  <div style={{fontSize:20,marginBottom:4}}>🌿</div>
-                  <div style={{fontSize:12,fontWeight:700}}>Just me</div>
-                  <div style={{fontSize:10,opacity:0.6,marginTop:2}}>Personal — no conflict check</div>
-                </button>
-                <button onClick={()=>setAddForm(f=>({...f,eventType:'ours',isPrivate:false}))} style={{
-                  background: addForm.eventType==='ours' ? C.lavender+'22' : C.surface,
-                  border: `1px solid ${addForm.eventType==='ours' ? C.lavender : C.border}`,
-                  color: addForm.eventType==='ours' ? C.lavender : C.textDim,
-                  borderRadius:12, padding:'12px 10px', cursor:'pointer', textAlign:'left',transition:'all 0.2s',
-                }}>
-                  <div style={{fontSize:20,marginBottom:4}}>💕</div>
-                  <div style={{fontSize:12,fontWeight:700}}>For us</div>
-                  <div style={{fontSize:10,opacity:0.6,marginTop:2}}>Warns if partner is busy</div>
-                </button>
-              </div>
-            </div>
 
-            {/* Title */}
-            <div style={{marginBottom:12}}>
-              <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>Title</label>
-              <input type="text" placeholder={addForm.eventType==='ours' ? 'e.g. Dinner date 🍽️' : 'e.g. Gym 🏃'} value={addForm.title} onChange={e=>setAddForm(f=>({...f,title:e.target.value}))} style={inp}/>
-            </div>
-            {/* Date */}
-            <div style={{marginBottom:12}}>
-              <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>Date</label>
-              <input type="date" value={addForm.date} onChange={e=>setAddForm(f=>({...f,date:e.target.value}))} style={inp}/>
-            </div>
-            {/* Start + End time side by side */}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
-              <div>
-                <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>Start</label>
-                <input type="time" value={addForm.startTime} onChange={e=>setAddForm(f=>({...f,startTime:e.target.value}))} style={inp}/>
+
+        {/* ════ ADD EVENT MODAL ════ */}
+        {showAddModal && (
+          <div onClick={()=>setShowAddModal(false)} style={{
+            position:'fixed',inset:0,zIndex:200,
+            background:'rgba(0,0,0,0.55)',backdropFilter:'blur(6px)',
+            display:'flex',alignItems:'flex-end',justifyContent:'center',
+            padding:isMobile?'0':'20px',
+          }}>
+            <div onClick={e=>e.stopPropagation()} style={{
+              width:'100%', maxWidth:460,
+              background:C.surface, borderRadius: isMobile ? '24px 24px 0 0' : 24,
+              padding:'24px 22px 32px',
+              maxHeight:isMobile?'92vh':'85vh', overflowY:'auto',
+              boxShadow:'0 -8px 40px rgba(0,0,0,0.35)',
+            }}>
+              {isMobile && <div style={{width:36,height:4,borderRadius:2,background:C.border,margin:'-8px auto 18px'}}/>}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
+                <div style={{fontFamily:"'Playfair Display'",fontSize:20,color:C.text,fontWeight:600}}>
+                  {addForm.eventType==='ours' ? '💕 New shared event' : '🌿 New event'}
+                </div>
+                <button onClick={()=>setShowAddModal(false)} style={{background:'none',border:'none',color:C.textDim,fontSize:22,cursor:'pointer',padding:'2px 6px',lineHeight:1}}>✕</button>
               </div>
-              <div>
-                <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>End</label>
-                <input type="time" value={addForm.endTime} onChange={e=>setAddForm(f=>({...f,endTime:e.target.value}))} style={inp}/>
-              </div>
-            </div>
-            <div style={{marginBottom:12}}>
-              <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>📍 Location <span style={{color:C.textDim,textTransform:'none',letterSpacing:0,fontWeight:400}}>(optional)</span></label>
-              <LocationPicker
-                value={addForm.location}
-                onChange={loc=>setAddForm(f=>({...f,location:loc}))}
-                apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY}
-              />
-            </div>
-            <div style={{marginBottom:12}}>
-              <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>📝 Notes <span style={{color:C.textDim,textTransform:'none',letterSpacing:0,fontWeight:400}}>(optional)</span></label>
-              <textarea placeholder="Any details, reminders…" value={addForm.notes} onChange={e=>setAddForm(f=>({...f,notes:e.target.value}))} rows={2} style={{...inp,resize:'vertical'}}/>
-            </div>
-            <div style={{marginBottom:12}}>
-              <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:6,fontWeight:700}}>Repeat</label>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:5}}>
-                {[['none','Once'],['daily','Daily'],['weekly','Weekly'],['biweekly','Every 2 wks'],['monthly','Monthly']].map(([val,label])=>(
-                  <button key={val} onClick={()=>setAddForm(f=>({...f,recurring:val}))} style={{
-                    background: addForm.recurring===val ? C.mint+'22' : C.surface,
-                    border: `1px solid ${addForm.recurring===val ? C.mint : C.border}`,
-                    color: addForm.recurring===val ? C.mint : C.textDim,
-                    borderRadius:8, padding:'7px 4px', fontSize:11, cursor:'pointer',fontWeight:addForm.recurring===val?700:400,
-                  }}>{label}</button>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:18}}>
+                {[['mine','🌿','Just me',C.mint],['ours','💕','For us',C.lavender]].map(([type,emoji,label,color])=>(
+                  <button key={type} onClick={()=>setAddForm(f=>({...f,eventType:type,isPrivate:false}))} style={{
+                    background: addForm.eventType===type ? color+'22' : C.bg,
+                    border:`1.5px solid ${addForm.eventType===type ? color : C.border}`,
+                    color: addForm.eventType===type ? color : C.textDim,
+                    borderRadius:12, padding:'10px 8px', cursor:'pointer', textAlign:'center', transition:'all 0.2s',
+                  }}>
+                    <div style={{fontSize:18,marginBottom:3}}>{emoji}</div>
+                    <div style={{fontSize:12,fontWeight:700}}>{label}</div>
+                  </button>
                 ))}
               </div>
-            </div>
-            {addForm.recurring !== 'none' && (
-              <div style={{marginBottom:12,background:C.surface,borderRadius:10,padding:'10px 14px',border:`1px solid ${C.border}`}}>
-                <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:6,fontWeight:700}}>Repeat until</label>
-                <input type="date" value={addForm.recurUntil} onChange={e=>setAddForm(f=>({...f,recurUntil:e.target.value}))} style={{...inp,marginBottom:0,background:'transparent',border:'none',padding:'0'}}/>
-                {addForm.date && addForm.recurUntil && (
-                  <div style={{fontSize:10,color:C.mint,marginTop:6,fontWeight:600}}>
-                    ✿ {getRecurringDates(addForm.date, addForm.recurring, addForm.recurUntil).length} events will be created
-                  </div>
-                )}
+              <div style={{marginBottom:13}}>
+                <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>Title</label>
+                <input autoFocus type="text" placeholder={addForm.eventType==='ours'?'e.g. Dinner date 🍽️':'e.g. Gym session 🏃'} value={addForm.title} onChange={e=>setAddForm(f=>({...f,title:e.target.value}))} style={inp}/>
               </div>
-            )}
-            {addForm.eventType === 'mine' && (
-              <label style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,cursor:'pointer',fontSize:12,color:C.textMid}}>
-                <input type="checkbox" checked={addForm.isPrivate} onChange={e=>setAddForm(f=>({...f,isPrivate:e.target.checked}))} style={{accentColor:C.mint}}/>
-                🔒 Keep private (partner sees "Busy")
-              </label>
-            )}
-            <button onClick={handleAdd} disabled={saving} style={{
-              width:'100%',
-              background: addForm.eventType==='ours' ? C.lavender : C.mint,
-              color:C.bg, border:'none', borderRadius:12, padding:13,
-              fontSize:14, fontWeight:700, cursor:'pointer',
-              opacity:saving?0.6:1, transition:'all 0.2s',
-            }}>
-              {saving ? '✿ Saving…' : addForm.recurring !== 'none' && addForm.recurUntil
-                ? `✿ Create ${getRecurringDates(addForm.date,addForm.recurring,addForm.recurUntil).length} events`
-                : addForm.eventType==='ours' ? '💕 Add shared event' : '✿ Add Event'}
-            </button>
+              <div style={{marginBottom:13}}>
+                <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>Date</label>
+                <input type="date" value={addForm.date} onChange={e=>setAddForm(f=>({...f,date:e.target.value}))} style={inp}/>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:13}}>
+                <div>
+                  <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>Start</label>
+                  <input type="time" value={addForm.startTime} onChange={e=>setAddForm(f=>({...f,startTime:e.target.value}))} style={inp}/>
+                </div>
+                <div>
+                  <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>End</label>
+                  <input type="time" value={addForm.endTime} onChange={e=>setAddForm(f=>({...f,endTime:e.target.value}))} style={inp}/>
+                </div>
+              </div>
+              <div style={{marginBottom:13}}>
+                <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>📍 Location <span style={{textTransform:'none',letterSpacing:0,fontWeight:400,opacity:0.6}}>(optional)</span></label>
+                <LocationPicker value={addForm.location} onChange={loc=>setAddForm(f=>({...f,location:loc}))} apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY}/>
+              </div>
+              <div style={{marginBottom:13}}>
+                <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>📝 Notes <span style={{textTransform:'none',letterSpacing:0,fontWeight:400,opacity:0.6}}>(optional)</span></label>
+                <textarea placeholder="Any details or reminders…" value={addForm.notes} onChange={e=>setAddForm(f=>({...f,notes:e.target.value}))} rows={2} style={{...inp,resize:'vertical'}}/>
+              </div>
+              <div style={{marginBottom:13}}>
+                <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:6,fontWeight:700}}>Repeat</label>
+                <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
+                  {[['none','Once'],['daily','Daily'],['weekly','Weekly'],['biweekly','2 weeks'],['monthly','Monthly']].map(([val,label])=>(
+                    <button key={val} onClick={()=>setAddForm(f=>({...f,recurring:val}))} style={{
+                      background: addForm.recurring===val ? C.mint+'22' : C.bg,
+                      border:`1px solid ${addForm.recurring===val ? C.mint : C.border}`,
+                      color: addForm.recurring===val ? C.mint : C.textDim,
+                      borderRadius:20, padding:'5px 12px', fontSize:11, cursor:'pointer',
+                      fontWeight:addForm.recurring===val?700:400,
+                    }}>{label}</button>
+                  ))}
+                </div>
+              </div>
+              {addForm.recurring !== 'none' && (
+                <div style={{marginBottom:13,background:C.bg,borderRadius:10,padding:'10px 14px',border:`1px solid ${C.border}`}}>
+                  <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:6,fontWeight:700}}>Repeat until</label>
+                  <input type="date" value={addForm.recurUntil} onChange={e=>setAddForm(f=>({...f,recurUntil:e.target.value}))} style={{...inp,background:'transparent',border:'none',padding:'0'}}/>
+                  {addForm.date && addForm.recurUntil && (
+                    <div style={{fontSize:10,color:C.mint,marginTop:6,fontWeight:600}}>✿ {getRecurringDates(addForm.date,addForm.recurring,addForm.recurUntil).length} events will be created</div>
+                  )}
+                </div>
+              )}
+              {addForm.eventType==='mine' && (
+                <label style={{display:'flex',alignItems:'center',gap:8,marginBottom:16,cursor:'pointer',fontSize:12,color:C.textMid}}>
+                  <input type="checkbox" checked={addForm.isPrivate} onChange={e=>setAddForm(f=>({...f,isPrivate:e.target.checked}))} style={{accentColor:C.mint,width:16,height:16}}/>
+                  🔒 Keep private (partner sees "Busy")
+                </label>
+              )}
+              {conflict && (
+                <div style={{background:C.rose+'18',border:`1px solid ${C.rose}44`,borderRadius:12,padding:'12px 14px',marginBottom:14}}>
+                  <div style={{color:C.rose,fontSize:13,fontWeight:700,marginBottom:4}}>⚠️ Partner has a conflict</div>
+                  <div style={{fontSize:12,color:C.textMid}}>"{conflict.clash.title}" at {conflict.clash.start_time}–{conflict.clash.end_time}</div>
+                  <div style={{display:'flex',gap:8,marginTop:10}}>
+                    <button onClick={()=>setConflict(null)} style={{flex:1,background:'none',border:`1px solid ${C.border}`,borderRadius:10,padding:'7px',fontSize:12,cursor:'pointer',color:C.textMid,fontFamily:'inherit'}}>Cancel</button>
+                    <button onClick={commitAdd} style={{flex:2,background:C.rose,color:'#fff',border:'none',borderRadius:10,padding:'7px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'inherit'}}>Add anyway</button>
+                  </div>
+                </div>
+              )}
+              <button onClick={handleAdd} disabled={saving} style={{
+                width:'100%', background: addForm.eventType==='ours' ? C.lavender : C.mint,
+                color:'#fff', border:'none', borderRadius:14, padding:'14px',
+                fontSize:15, fontWeight:700, cursor:'pointer', opacity:saving?0.6:1,
+                boxShadow:`0 4px 16px ${addForm.eventType==='ours'?C.lavender:C.mint}44`,
+              }}>
+                {saving ? '✿ Saving…' : addForm.recurring!=='none'&&addForm.recurUntil
+                  ? `✿ Create ${getRecurringDates(addForm.date,addForm.recurring,addForm.recurUntil).length} events`
+                  : addForm.eventType==='ours' ? '💕 Add shared event' : '✿ Add event'}
+              </button>
+            </div>
           </div>
         )}
 
-        {/* ── Event detail / edit modal ── */}
+        {/* ── Event detail modal ── */}
         {selectedEvent && (() => {
           const ev = selectedEvent
           const color = eventColor(ev)
-          const isOurs = ev.event_type === 'ours' || ev.title?.startsWith('💑')
-          const isPrivatePartner = ev.is_private && ownerOf(ev) === 'partner'
-          const editing = editForm !== null
-          const minp = { width:'100%',background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,padding:'9px 12px',color:C.text,fontSize:13,outline:'none',boxSizing:'border-box',colorScheme:'dark',fontFamily:'inherit' }
-
+          const loc = parseLocation(ev.location)
+          const isEditing = !!editForm
           return (
-            <div onClick={closeModal} style={{position:'fixed',inset:0,background:'#0008',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:200,padding:20}}>
-              <div onClick={e=>e.stopPropagation()} style={{
-                background:C.surface,border:`1px solid ${color}55`,
-                borderRadius:20,padding:24,maxWidth:380,width:'100%',
-                maxHeight:'90vh',overflowY:'auto',
-                boxShadow:`0 20px 60px #00000066, 0 0 0 1px ${color}22`,
-              }}>
-
-                {/* ── Modal header ── */}
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:18}}>
+            <div onClick={closeModal} style={{position:'fixed',inset:0,zIndex:300,background:'rgba(0,0,0,0.55)',backdropFilter:'blur(6px)',display:'flex',alignItems:'flex-end',justifyContent:'center',padding:isMobile?0:20}}>
+              <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:460,background:C.surface,borderRadius:isMobile?'24px 24px 0 0':24,padding:'22px 20px 28px',maxHeight:isMobile?'88vh':'85vh',overflowY:'auto',boxShadow:'0 -8px 40px rgba(0,0,0,0.3)'}}>
+                {isMobile && <div style={{width:36,height:4,borderRadius:2,background:C.border,margin:'-6px auto 16px'}}/>}
+                {/* Header */}
+                <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14}}>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:5}}>
-                      <button onClick={()=>setStickerTarget(ev.id)} title="Change sticker" style={{
-                        background:C.bg,border:`1.5px dashed ${C.border}`,borderRadius:10,
-                        padding:'6px 8px',cursor:'pointer',display:'flex',alignItems:'center',gap:6,
-                        fontSize:11,color:C.textMid,
-                      }}>
-                        <EventSticker sticker={stickers[ev.id]} size={22} C={C}/>
-                        <span style={{fontSize:9}}>+sticker</span>
-                      </button>
-                      <span style={{fontSize:10,color:color,textTransform:'uppercase',letterSpacing:'0.07em',fontWeight:700}}>
-                        {isOurs ? '💕 For us' : ownerOf(ev)==='you' ? user?.name||'You' : partner?.name||'Partner'}
-                      </span>
-                      {isOurs && <span style={{fontSize:9,color:C.textDim,marginLeft:2}}>— editable by both</span>}
+                    {isEditing
+                      ? <input value={editForm.title} onChange={e=>setEditForm(f=>({...f,title:e.target.value}))} style={{...inp,fontFamily:"'Playfair Display'",fontSize:18,fontWeight:600,padding:'6px 10px'}}/>
+                      : <div style={{fontFamily:"'Playfair Display'",fontSize:18,fontWeight:600,color:C.text,lineHeight:1.3}}>{ev.title?.replace(/^💑\s?/,'')}</div>
+                    }
+                    <div style={{display:'flex',alignItems:'center',gap:8,marginTop:6}}>
+                      <div style={{width:8,height:8,borderRadius:'50%',background:color}}/>
+                      <span style={{fontSize:11,color:color,fontWeight:700}}>{ev.event_type==='ours'?'💕 Shared':ownerOf(ev)==='you'?'🌿 Yours':'🌷 Partner\'s'}</span>
+                      {ev.is_private&&<span style={{fontSize:10,color:C.textDim,background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:'1px 7px'}}>🔒 Private</span>}
                     </div>
-                    {!editing && (
-                      <div style={{fontFamily:"'Playfair Display'",fontSize:22,color:C.text,lineHeight:1.2,wordBreak:'break-word'}}>
-                        {isPrivatePartner ? '🔒 Busy' : ev.title?.replace(/^💑\s?/,'')}
-                      </div>
-                    )}
                   </div>
-                  <div style={{display:'flex',gap:6,marginLeft:10,flexShrink:0}}>
-                    {canEdit(ev) && !isPrivatePartner && !editing && (
-                      <button onClick={()=>openEdit(ev)} style={{background:C.bg,border:`1px solid ${C.border}`,color:C.textMid,fontSize:12,cursor:'pointer',borderRadius:8,padding:'5px 11px',fontWeight:600}}>✏️ Edit</button>
-                    )}
-                    <button onClick={closeModal} style={{background:'none',border:'none',color:C.textDim,fontSize:18,cursor:'pointer',padding:'0 4px'}}>✕</button>
+                  <div style={{display:'flex',gap:4,flexShrink:0,marginLeft:10}}>
+                    {canEdit(ev) && !isEditing && <button onClick={()=>openEdit(ev)} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:'5px 10px',fontSize:11,cursor:'pointer',color:C.textMid,fontFamily:'inherit',fontWeight:600}}>Edit</button>}
+                    {isEditing && <button onClick={()=>setEditForm(null)} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:'5px 10px',fontSize:11,cursor:'pointer',color:C.textMid,fontFamily:'inherit'}}>Cancel</button>}
+                    {isEditing && <button onClick={handleSaveEdit} disabled={saving} style={{background:C.mint,border:'none',borderRadius:8,padding:'5px 12px',fontSize:11,cursor:'pointer',color:'#fff',fontFamily:'inherit',fontWeight:700}}>{saving?'…':'Save'}</button>}
+                    <button onClick={closeModal} style={{background:'none',border:'none',color:C.textDim,fontSize:20,cursor:'pointer',padding:'2px 5px',lineHeight:1}}>✕</button>
                   </div>
                 </div>
 
-                {/* ── VIEW MODE ── */}
-                {!editing && (
-                  <div style={{display:'flex',flexDirection:'column',gap:11}}>
-                    <div style={{display:'flex',alignItems:'center',gap:11,fontSize:13,color:C.textMid,background:C.bg,borderRadius:10,padding:'10px 13px'}}>
-                      <span style={{fontSize:16}}>📅</span>
-                      <span>{DAYS[new Date(ev.date+'T00:00').getDay()]}, {MONTHS[new Date(ev.date+'T00:00').getMonth()]} {new Date(ev.date+'T00:00').getDate()}</span>
-                    </div>
-                    <div style={{display:'flex',alignItems:'center',gap:11,fontSize:13,color:C.textMid,background:C.bg,borderRadius:10,padding:'10px 13px'}}>
-                      <span style={{fontSize:16}}>🕐</span>
-                      <span>{ev.start_time} – {ev.end_time}</span>
-                    </div>
-                    {!isPrivatePartner && ev.location && (
-                      <LocationPicker
-                        value={parseLocation(ev.location)}
-                        readOnly
-                      />
-                    )}
-                    {!isPrivatePartner && ev.notes && (
-                      <div style={{display:'flex',alignItems:'flex-start',gap:11,fontSize:13,color:C.textMid,background:C.bg,borderRadius:10,padding:'10px 13px'}}>
-                        <span style={{fontSize:16,flexShrink:0}}>📝</span>
-                        <span style={{lineHeight:1.6}}>{ev.notes}</span>
-                      </div>
-                    )}
-                    {ev.is_private && ownerOf(ev)==='you' && (
-                      <div style={{fontSize:11,color:C.textDim,background:C.bg,borderRadius:8,padding:'6px 11px'}}>🔒 Hidden from partner</div>
-                    )}
-                    {canDelete(ev) && (
-                      <button onClick={()=>handleDelete(ev)} style={{width:'100%',marginTop:4,background:C.rose+'11',color:C.rose,border:`1px solid ${C.rose}33`,borderRadius:11,padding:11,fontSize:13,cursor:'pointer',fontWeight:600}}>
-                        {isOurs ? '🗑 Delete for both of us' : '🗑 Delete event'}
-                      </button>
-                    )}
+                {/* Detail rows */}
+                <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                  {/* Date */}
+                  <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:C.bg,borderRadius:10}}>
+                    <span style={{fontSize:16}}>📅</span>
+                    {isEditing
+                      ? <input type="date" value={editForm.date} onChange={e=>setEditForm(f=>({...f,date:e.target.value}))} style={{...inp,padding:'4px 8px',flex:1}}/>
+                      : <span style={{fontSize:13,color:C.text,fontWeight:600}}>{ev.date}</span>
+                    }
                   </div>
-                )}
+                  {/* Time */}
+                  <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:C.bg,borderRadius:10}}>
+                    <span style={{fontSize:16}}>🕐</span>
+                    {isEditing
+                      ? <div style={{display:'flex',gap:8,flex:1,alignItems:'center'}}>
+                          <input type="time" value={editForm.startTime} onChange={e=>setEditForm(f=>({...f,startTime:e.target.value}))} style={{...inp,padding:'4px 8px',flex:1}}/>
+                          <span style={{color:C.textDim}}>–</span>
+                          <input type="time" value={editForm.endTime} onChange={e=>setEditForm(f=>({...f,endTime:e.target.value}))} style={{...inp,padding:'4px 8px',flex:1}}/>
+                        </div>
+                      : <span style={{fontSize:13,color:C.text,fontWeight:600}}>{ev.start_time} – {ev.end_time}</span>
+                    }
+                  </div>
+                  {/* Location */}
+                  {isEditing
+                    ? <div style={{padding:'8px 12px',background:C.bg,borderRadius:10}}>
+                        <LocationPicker value={editForm.location} onChange={loc=>setEditForm(f=>({...f,location:loc}))} apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY}/>
+                      </div>
+                    : loc?.name && <LocationPicker value={loc} readOnly apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY}/>
+                  }
+                  {/* Notes */}
+                  {isEditing
+                    ? <textarea value={editForm.notes||''} onChange={e=>setEditForm(f=>({...f,notes:e.target.value}))} rows={2} placeholder="Notes…" style={{...inp,resize:'vertical'}}/>
+                    : ev.notes && <div style={{padding:'8px 12px',background:C.bg,borderRadius:10,fontSize:13,color:C.textMid,lineHeight:1.5}}>📝 {ev.notes}</div>
+                  }
+                  {isEditing && ev.event_type!=='ours' && (
+                    <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:12,color:C.textMid,padding:'4px 0'}}>
+                      <input type="checkbox" checked={editForm.isPrivate} onChange={e=>setEditForm(f=>({...f,isPrivate:e.target.checked}))} style={{accentColor:C.mint}}/>
+                      🔒 Keep private
+                    </label>
+                  )}
+                </div>
 
-                {/* ── EDIT MODE ── */}
-                {editing && (
-                  <div style={{display:'flex',flexDirection:'column',gap:11}}>
-                    <div>
-                      <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>Title</label>
-                      <input type="text" value={editForm.title} onChange={e=>setEditForm(f=>({...f,title:e.target.value}))} style={minp}/>
-                    </div>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-                      <div style={{gridColumn:'span 3'}}>
-                        <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>Date</label>
-                        <input type="date" value={editForm.date} onChange={e=>setEditForm(f=>({...f,date:e.target.value}))} style={minp}/>
-                      </div>
-                      <div>
-                        <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>Start</label>
-                        <input type="time" value={editForm.startTime} onChange={e=>setEditForm(f=>({...f,startTime:e.target.value}))} style={minp}/>
-                      </div>
-                      <div>
-                        <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>End</label>
-                        <input type="time" value={editForm.endTime} onChange={e=>setEditForm(f=>({...f,endTime:e.target.value}))} style={minp}/>
-                      </div>
-                    </div>
-                    <div>
-                      <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>📍 Location</label>
-                      <LocationPicker
-                        value={editForm.location}
-                        onChange={loc=>setEditForm(f=>({...f,location:loc}))}
-                        apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY}
-                      />
-                    </div>
-                    <div>
-                      <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>📝 Notes</label>
-                      <textarea rows={2} placeholder="Optional" value={editForm.notes} onChange={e=>setEditForm(f=>({...f,notes:e.target.value}))} style={{...minp,resize:'vertical',fontFamily:'inherit'}}/>
-                    </div>
-                    {!isOurs && (
-                      <label style={{display:'flex',alignItems:'center',gap:7,cursor:'pointer',fontSize:12,color:'#666'}}>
-                        <input type="checkbox" checked={editForm.isPrivate} onChange={e=>setEditForm(f=>({...f,isPrivate:e.target.checked}))} style={{accentColor:C.mint}}/>
-                        Keep private (partner sees "Busy")
-                      </label>
-                    )}
-                    <div style={{display:'flex',gap:8,marginTop:8}}>
-                      <button onClick={()=>setEditForm(null)} style={{flex:1,background:C.bg,color:C.textMid,border:`1px solid ${C.border}`,borderRadius:10,padding:10,fontSize:13,cursor:'pointer',fontWeight:600}}>
-                        Cancel
-                      </button>
-                      <button onClick={handleSaveEdit} disabled={saving} style={{
-                        flex:2,background:isOurs?C.lavender:C.mint,
-                        color:C.bg,border:'none',borderRadius:10,padding:10,
-                        fontSize:13,fontWeight:700,cursor:'pointer',opacity:saving?0.6:1,transition:'all 0.2s',
-                      }}>
-                        {saving ? '✿ Saving…' : '✿ Save changes'}
-                      </button>
-                    </div>
-                  </div>
+                {/* Actions */}
+                {!isEditing && canDelete(ev) && (
+                  <button onClick={()=>handleDelete(ev)} style={{
+                    marginTop:16, width:'100%', background:'none',
+                    border:`1px solid ${C.rose}55`, borderRadius:12, padding:'10px',
+                    fontSize:13, color:C.rose, cursor:'pointer', fontFamily:'inherit', fontWeight:600,
+                  }}>🗑 Delete event</button>
                 )}
               </div>
             </div>
           )
         })()}
 
-        {/* ── Conflict modal ── */}
-        {conflict&&(
-          <div style={{position:'fixed',inset:0,background:'#0009',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:300,padding:20}}>
-            <div style={{background:C.surface,border:`1px solid ${C.rose}66`,borderRadius:18,padding:26,maxWidth:320,width:'100%',boxShadow:`0 20px 60px #00000066`}}>
-              <div style={{fontSize:32,marginBottom:8,textAlign:'center'}}>🌧️</div>
-              <div style={{fontFamily:"'Playfair Display'",fontSize:18,marginBottom:8,color:C.rose,textAlign:'center'}}>Schedule Clash!</div>
-              <p style={{fontSize:12,color:C.textMid,lineHeight:1.7,marginBottom:18,textAlign:'center'}}>
-                <b style={{color:C.text}}>{conflict.form.title}</b> overlaps with your partner's <b style={{color:C.rose}}>{conflict.clash.title}</b> ({conflict.clash.start_time}–{conflict.clash.end_time}).
-              </p>
-              <div style={{display:'flex',gap:8}}>
-                <button onClick={commitAdd} style={{flex:1,background:C.rose+'18',color:C.rose,border:`1px solid ${C.rose}44`,borderRadius:10,padding:10,fontSize:12,cursor:'pointer',fontWeight:600}}>Add anyway</button>
-                <button onClick={()=>setConflict(null)} style={{flex:1,background:C.mint,color:C.bg,border:'none',borderRadius:10,padding:10,fontSize:12,fontWeight:700,cursor:'pointer'}}>Go back 🌿</button>
-              </div>
+        {/* ── Sticker picker ── */}
+        {stickerTarget && (
+          <div onClick={()=>setStickerTarget(null)} style={{position:'fixed',inset:0,zIndex:400,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:20,padding:20,width:'min(340px,100%)',boxShadow:'0 16px 60px rgba(0,0,0,0.4)'}}>
+              <StickerPicker onSelect={handleStickerSelect} onClose={()=>setStickerTarget(null)} C={C}/>
             </div>
           </div>
         )}
-        {/* ── Sticker picker ── */}
-        {stickerTarget && (
-          <StickerPicker
-            onSelect={handleStickerSelect}
-            onClose={()=>setStickerTarget(null)}
-            C={C}
-          />
-        )}
 
       </main>
-      <style>{`
-        * { box-sizing:border-box }
-        input[type=date]::-webkit-calendar-picker-indicator,
-        input[type=time]::-webkit-calendar-picker-indicator { filter:opacity(0.5) }
-        ::-webkit-scrollbar { width:4px }
-        ::-webkit-scrollbar-track { background:transparent }
-        ::-webkit-scrollbar-thumb { background:#E8D5BC; border-radius:4px }
-        * { -webkit-font-smoothing:antialiased }
-        button:hover { filter:brightness(0.97) }
-      `}</style>
     </div>
   )
 }
