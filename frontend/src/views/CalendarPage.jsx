@@ -4,6 +4,7 @@ import { useAuth } from '../lib/AuthContext'
 import { useCalendar } from '../hooks/useCalendar'
 import { useTheme } from '../lib/ThemeContext'
 import LocationPicker from '../components/LocationPicker'
+import CompareView from '../components/CompareView'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
@@ -496,22 +497,17 @@ export default function CalendarPage() {
 
           {/* Tabs */}
           <div style={{display:'flex',gap:2,alignItems:'center'}}>
-            {[['calendar','🗓 Calendar'],['free','✦ Free Together'],['add','＋ Add']].map(([v,label])=>{
+            {[['calendar','🗓 Calendar'],['compare','↔ Compare'],['add','＋ Add']].map(([v,label])=>{
               const active = tab===v
-              const color  = v==='add'?C.peach:v==='free'?C.gold:C.mint
+              const color  = v==='add'?C.peach:v==='compare'?C.lavender:C.mint
               return (
                 <button key={v} onClick={()=>setTab(v)} style={{
                   background: active ? color : 'transparent',
                   color: active ? '#fff' : C.textMid,
-                  border: active ? 'none' : 'none',
-                  borderRadius:20, padding:'5px 14px',
+                  border:'none', borderRadius:20, padding:'5px 14px',
                   fontSize:11, fontWeight:active?700:500,
-                  cursor:'pointer', transition:'all 0.2s',
-                  letterSpacing:'0.02em',
-                  borderBottom: active ? 'none' : 'none',
-                  position:'relative',
+                  cursor:'pointer', transition:'all 0.2s', letterSpacing:'0.02em',
                 }}>
-                  {!active && <span style={{position:'absolute',bottom:0,left:'50%',transform:'translateX(-50%)',height:2,width:0,background:color,borderRadius:2,transition:'width 0.2s'}}/>}
                   {label}
                 </button>
               )
@@ -521,7 +517,7 @@ export default function CalendarPage() {
       </nav>
 
       {/* ── Main content ── */}
-      <main onClick={()=>setConfirmDelete(null)} style={{flex:1,padding:'14px 24px',overflowY:'auto',position:'relative',zIndex:1}}>
+      <main onClick={()=>setConfirmDelete(null)} style={{flex:1,padding:'14px 24px',overflowY: tab==='compare'?'hidden':'auto',display:'flex',flexDirection:'column',position:'relative',zIndex:1}}>
 
         {/* ════ CALENDAR TAB ════ */}
         {tab==='calendar' && (
@@ -718,34 +714,22 @@ export default function CalendarPage() {
           </>
         )}
 
-        {/* ════ FREE TOGETHER TAB ════ */}
-        {tab==='free' && (
-          <div>
-            <div style={{marginBottom:16,color:C.textMid,fontSize:12,fontWeight:600}}>🌟 Common free slots ≥1hr — {calView} view</div>
-            {freeDays.length===0
-              ? <div style={{textAlign:'center',color:C.textDim,padding:48,fontSize:13}}>
-                  <div style={{fontSize:36,marginBottom:10}}>🌙</div>
-                  No overlapping free time this period<br/>
-                  <span style={{fontSize:11,color:C.textDim}}>Try a different week ✦</span>
-                </div>
-              : <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                  {freeDays.map(({date,dateStr,slots})=>(
-                    <div key={dateStr} style={{background:C.surface,border:`1px solid ${C.gold}33`,borderRadius:14,padding:'14px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',gap:10}}>
-                      <div>
-                        <div style={{fontFamily:"'Playfair Display'",fontSize:15,marginBottom:5,color:C.text,fontWeight:600}}>
-                          ✨ {DAYS[date.getDay()]} {date.getDate()} {MONTHS[date.getMonth()]}
-                        </div>
-                        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                          {slots.map(([s,e],i)=><span key={i} style={{background:C.gold+'22',color:C.gold,border:`1px solid ${C.gold}44`,borderRadius:20,padding:'2px 10px',fontSize:11,fontWeight:600}}>{minsToTime(s)} – {minsToTime(e)}</span>)}
-                        </div>
-                      </div>
-                      <button onClick={()=>{setAddForm(f=>({...f,date:dateStr,eventType:'ours'}));setTab('add')}} style={{background:C.peach,color:C.bg,border:'none',borderRadius:20,padding:'7px 14px',fontSize:11,fontWeight:700,cursor:'pointer',flexShrink:0}}>
-                        Plan 💕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-            }
+        {/* ════ COMPARE TAB ════ */}
+        {tab==='compare' && (
+          <div style={{flex:1,display:'flex',flexDirection:'column',minHeight:0,position:'relative'}}>
+            <CompareView
+              events={events}
+              onSelectEvent={setSelectedEvent}
+              onAddEvent={(prefill)=>{
+                setAddForm(f=>({...f,...prefill,
+                  startTime: prefill.startTime||'',
+                  endTime:   prefill.endTime||'',
+                  date:      prefill.date||'',
+                  eventType: prefill.eventType||'mine',
+                }))
+                setTab('add')
+              }}
+            />
           </div>
         )}
 
