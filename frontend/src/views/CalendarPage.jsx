@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { useCalendar } from '../hooks/useCalendar'
 import { useTheme } from '../lib/ThemeContext'
+import LocationPicker from '../components/LocationPicker'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
@@ -166,7 +167,7 @@ export default function CalendarPage() {
   const [calView,  setCalView]  = useState('week')
   const [navDate,  setNavDate]  = useState(new Date())
   const [tab,      setTab]      = useState('calendar')
-  const [addForm,  setAddForm]  = useState({ title:'', date:'', startTime:'', endTime:'', isPrivate:false, recurring:'none', recurUntil:'', eventType:'mine', location:'', notes:'' })
+  const [addForm,  setAddForm]  = useState({ title:'', date:'', startTime:'', endTime:'', isPrivate:false, recurring:'none', recurUntil:'', eventType:'mine', location:null, notes:'' })
   const [conflict, setConflict] = useState(null)
   const [saving,   setSaving]   = useState(false)
   const [selectedEvent, setSelectedEvent] = useState(null)
@@ -214,7 +215,7 @@ export default function CalendarPage() {
       date:      ev.date || '',
       startTime: ev.start_time || '',
       endTime:   ev.end_time || '',
-      location:  ev.location || '',
+      location:  ev.location_obj || (ev.location ? {name:ev.location,lat:null,lng:null} : null),
       notes:     ev.notes || '',
       isPrivate: ev.is_private || false,
     })
@@ -230,7 +231,8 @@ export default function CalendarPage() {
         date:       editForm.date,
         start_time: editForm.startTime,
         end_time:   editForm.endTime,
-        location:   editForm.location,
+        location:   editForm.location?.name || '',
+        location_obj: editForm.location || null,
         notes:      editForm.notes,
         is_private: editForm.isPrivate,
       }
@@ -310,11 +312,12 @@ export default function CalendarPage() {
         endTime:   addForm.endTime,
         isPrivate: addForm.isPrivate,
         eventType: addForm.eventType,
-        location:  addForm.location,
+        location:  addForm.location?.name || '',
+        location_obj: addForm.location || null,
         notes:     addForm.notes,
       })
     }
-    setAddForm({title:'',date:'',startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:'',eventType:'mine',location:'',notes:''})
+    setAddForm({title:'',date:'',startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:'',eventType:'mine',location:null,notes:''})
     setConflict(null)
     setSaving(false)
     setTab('calendar')
@@ -772,16 +775,11 @@ export default function CalendarPage() {
             ))}
             <div style={{marginBottom:12}}>
               <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>📍 Location <span style={{color:C.textDim,textTransform:'none',letterSpacing:0,fontWeight:400}}>(optional)</span></label>
-              <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                <input type="text" placeholder="e.g. Straits Quay, Penang" value={addForm.location} onChange={e=>setAddForm(f=>({...f,location:e.target.value}))} style={{...inp,marginBottom:0,flex:1}}/>
-                {addForm.location && (
-                  <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addForm.location)}`}
-                    target="_blank" rel="noopener noreferrer"
-                    style={{flexShrink:0,background:C.peach,color:'#fff',borderRadius:10,padding:'10px 12px',fontSize:12,fontWeight:700,textDecoration:'none',display:'flex',alignItems:'center',gap:4,whiteSpace:'nowrap'}}>
-                    🗺 Maps
-                  </a>
-                )}
-              </div>
+              <LocationPicker
+                value={addForm.location}
+                onChange={loc=>setAddForm(f=>({...f,location:loc}))}
+                apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY}
+              />
             </div>
             <div style={{marginBottom:12}}>
               <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>📝 Notes <span style={{color:C.textDim,textTransform:'none',letterSpacing:0,fontWeight:400}}>(optional)</span></label>
@@ -891,23 +889,11 @@ export default function CalendarPage() {
                       <span style={{fontSize:16}}>🕐</span>
                       <span>{ev.start_time} – {ev.end_time}</span>
                     </div>
-                    {!isPrivatePartner && ev.location && (
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.location)}`}
-                        target="_blank" rel="noopener noreferrer"
-                        style={{
-                          display:'flex',alignItems:'center',gap:11,fontSize:13,
-                          color:C.textMid,background:C.bg,borderRadius:10,padding:'10px 13px',
-                          textDecoration:'none',transition:'all 0.15s',
-                          border:`1px solid transparent`,cursor:'pointer',
-                        }}
-                        onMouseEnter={e=>{e.currentTarget.style.borderColor=C.peach+'55';e.currentTarget.style.color=C.peach}}
-                        onMouseLeave={e=>{e.currentTarget.style.borderColor='transparent';e.currentTarget.style.color=C.textMid}}
-                      >
-                        <span style={{fontSize:16,flexShrink:0}}>📍</span>
-                        <span style={{flex:1}}>{ev.location}</span>
-                        <span style={{fontSize:10,opacity:0.5,flexShrink:0}}>↗ maps</span>
-                      </a>
+                    {!isPrivatePartner && (ev.location_obj || ev.location) && (
+                      <LocationPicker
+                        value={ev.location_obj || (ev.location ? {name:ev.location,lat:null,lng:null} : null)}
+                        readOnly
+                      />
                     )}
                     {!isPrivatePartner && ev.notes && (
                       <div style={{display:'flex',alignItems:'flex-start',gap:11,fontSize:13,color:C.textMid,background:C.bg,borderRadius:10,padding:'10px 13px'}}>
@@ -949,16 +935,11 @@ export default function CalendarPage() {
                     </div>
                     <div>
                       <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>📍 Location</label>
-                      <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                        <input type="text" placeholder="e.g. Gurney Drive, Penang" value={editForm.location} onChange={e=>setEditForm(f=>({...f,location:e.target.value}))} style={{...minp,flex:1,marginBottom:0}}/>
-                        {editForm.location && (
-                          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(editForm.location)}`}
-                            target="_blank" rel="noopener noreferrer"
-                            style={{flexShrink:0,background:C.peach,color:'#fff',borderRadius:8,padding:'9px 11px',fontSize:11,fontWeight:700,textDecoration:'none',whiteSpace:'nowrap'}}>
-                            🗺 Maps
-                          </a>
-                        )}
-                      </div>
+                      <LocationPicker
+                        value={editForm.location}
+                        onChange={loc=>setEditForm(f=>({...f,location:loc}))}
+                        apiKey={import.meta.env.VITE_GOOGLE_MAPS_KEY}
+                      />
                     </div>
                     <div>
                       <label style={{fontSize:10,color:'#555',textTransform:'uppercase',letterSpacing:'0.05em',display:'block',marginBottom:4}}>📝 Notes</label>

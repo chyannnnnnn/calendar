@@ -45,7 +45,7 @@ export async function flushQueue() {
     try {
       if (item.type === 'upsert') {
         // Strip local-only fields — Supabase doesn't know these columns
-        const { _syncStatus, created_at, ...payload } = item.payload
+        const { _syncStatus, created_at, location_obj, ...payload } = item.payload
 
         // Use update if the row exists, insert if it's new
         // This is more explicit than upsert and avoids RLS edge cases

@@ -229,3 +229,9 @@ alter table profiles add column if not exists extras jsonb not null default '{}'
 -- Allow users to update their own extras
 drop policy if exists "Users can update own extras" on profiles;
 -- (covered by existing "Users can update own profile" policy which is for all of profiles)
+
+
+-- ─── 7. LOCATION COORDINATES ─────────────────────────────────────────────────
+-- Store lat/lng so the map can show the exact pinned point
+alter table events add column if not exists location_lat  double precision;
+alter table events add column if not exists location_lng  double precision;
