@@ -6,11 +6,19 @@ function loadGoogleMaps(apiKey) {
   if (window.google?.maps?.places) return Promise.resolve(window.google.maps)
   if (_mapsPromise) return _mapsPromise
   _mapsPromise = new Promise((resolve, reject) => {
+    // Google Maps reports errors via gm_authFailure callback
+    window.gm_authFailure = () => {
+      _mapsPromise = null
+      reject(new Error('AUTH_FAILURE'))
+    }
     const script = document.createElement('script')
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`
     script.async = true
-    script.onload  = () => resolve(window.google.maps)
-    script.onerror = () => { _mapsPromise = null; reject(new Error('Failed to load Google Maps. Check your API key.')) }
+    script.onload  = () => {
+      // Give gm_authFailure a moment to fire if auth fails
+      setTimeout(() => resolve(window.google.maps), 200)
+    }
+    script.onerror = () => { _mapsPromise = null; reject(new Error('SCRIPT_LOAD_FAILED')) }
     document.head.appendChild(script)
   })
   return _mapsPromise
@@ -38,7 +46,7 @@ export default function LocationPicker({ value, onChange, apiKey, readOnly = fal
     setPinned(value || null)
     setQuery(value?.name || '')
     setSugs([])
-    if (!apiKey) { setStatus('error'); setErrorMsg('No Google Maps API key (VITE_GOOGLE_MAPS_KEY).'); return }
+    if (!apiKey) { setStatus('error'); setErrorMsg('NO_KEY'); return }
     setStatus('loading')
     loadGoogleMaps(apiKey)
       .then(() => setStatus('ready'))
@@ -267,10 +275,32 @@ export default function LocationPicker({ value, onChange, apiKey, readOnly = fal
                 </div>
               )}
               {status === 'error' && (
-                <div style={{position:'absolute',inset:0,zIndex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:C.bg,padding:24,textAlign:'center',gap:8}}>
+                <div style={{position:'absolute',inset:0,zIndex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:C.bg,padding:24,textAlign:'center',gap:12}}>
                   <span style={{fontSize:36}}>🗺</span>
-                  <span style={{color:C.rose,fontSize:13,fontWeight:700}}>⚠️ {errorMsg}</span>
-                  <span style={{color:C.textDim,fontSize:12}}>Add VITE_GOOGLE_MAPS_KEY to your .env and Vercel environment variables.</span>
+                  {errorMsg === 'AUTH_FAILURE' ? (<>
+                    <span style={{color:C.rose,fontSize:14,fontWeight:700}}>API key error</span>
+                    <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:'14px 16px',textAlign:'left',fontSize:12,color:C.textMid,lineHeight:1.8,maxWidth:360}}>
+                      Fix one of these in <strong>Google Cloud Console</strong>:<br/>
+                      1. Enable <strong>Maps JavaScript API</strong><br/>
+                      2. Enable <strong>Places API</strong><br/>
+                      3. Enable <strong>Geocoding API</strong><br/>
+                      4. Enable <strong>Billing</strong> on your project<br/>
+                      5. Check the key in Vercel env vars matches exactly
+                    </div>
+                  </>) : errorMsg === 'SCRIPT_LOAD_FAILED' ? (<>
+                    <span style={{color:C.rose,fontSize:14,fontWeight:700}}>Could not load Google Maps</span>
+                    <span style={{color:C.textDim,fontSize:12}}>Check your internet connection or API key.</span>
+                  </>) : errorMsg === 'NO_KEY' ? (<>
+                    <span style={{color:C.rose,fontSize:14,fontWeight:700}}>No API key set</span>
+                    <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:'14px 16px',textAlign:'left',fontSize:12,color:C.textMid,lineHeight:1.8,maxWidth:360}}>
+                      Add <code style={{background:C.bg,padding:'1px 5px',borderRadius:4}}>VITE_GOOGLE_MAPS_KEY=your_key</code> to:<br/>
+                      • Your local <strong>.env</strong> file<br/>
+                      • Vercel → Settings → Environment Variables<br/>
+                      Then redeploy.
+                    </div>
+                  </>) : (<>
+                    <span style={{color:C.rose,fontSize:13,fontWeight:700}}>⚠️ {errorMsg}</span>
+                  </>)}
                 </div>
               )}
               <div ref={mapDivRef} style={{width:'100%',height:'100%'}} />
