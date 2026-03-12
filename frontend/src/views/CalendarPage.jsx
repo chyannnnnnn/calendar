@@ -622,19 +622,19 @@ export default function CalendarPage() {
                       style={{
                         background:isToday?C.peach+'11':C.surface,
                         border:`1.5px solid ${isToday?C.peach+'88':hasOurs?C.lavender+'55':C.border}`,
-                        borderRadius:14, padding:'12px 10px', minHeight:160,
+                        borderRadius:14, padding:'14px 12px', minHeight: isMobile ? 160 : 220,
                         position:'relative', overflow:'hidden', cursor:'pointer',
                         transition:'border-color 0.15s',
                       }}>
                       {isToday && <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${C.peach}00,${C.peach},${C.peach}00)`}}/>}
-                      <div style={{fontSize:10,color:isToday?C.peach:C.textDim,marginBottom:3,textTransform:'uppercase',letterSpacing:'0.07em',fontWeight:700}}>{DAYS[date.getDay()]}</div>
-                      <div style={{fontSize:26,fontFamily:"'Playfair Display'",color:isToday?C.peach:C.text,marginBottom:8,fontWeight:600,lineHeight:1}}>{date.getDate()}</div>
+                      <div style={{fontSize:isMobile?10:11,color:isToday?C.peach:C.textDim,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:700}}>{DAYS[date.getDay()]}</div>
+                      <div style={{fontSize:isMobile?26:32,fontFamily:"'Playfair Display'",color:isToday?C.peach:C.text,marginBottom:isMobile?8:12,fontWeight:600,lineHeight:1}}>{date.getDate()}</div>
                       {dayEvs.map(ev=>(
                         <div key={ev.id} onClick={e=>{e.stopPropagation();setSelectedEvent(ev)}} style={{
                           background:eventColor(ev)+'20',
                           borderLeft:`3px solid ${eventColor(ev)}`,
-                          borderRadius:'0 7px 7px 0', padding:'3px 7px', marginBottom:3,
-                          fontSize:10, color:eventColor(ev), fontWeight:600,
+                          borderRadius:'0 7px 7px 0', padding: isMobile ? '3px 7px' : '5px 9px', marginBottom:4,
+                          fontSize:isMobile?10:11, color:eventColor(ev), fontWeight:600,
                           display:'flex', justifyContent:'space-between', alignItems:'center',
                           cursor:'pointer', transition:'all 0.15s',
                         }}>
@@ -780,33 +780,37 @@ export default function CalendarPage() {
         {/* ════ ADD EVENT MODAL ════ */}
         {showAddModal && (
           <div onClick={()=>setShowAddModal(false)} style={{
-            position:'fixed',inset:0,zIndex:200,
-            background:'rgba(0,0,0,0.55)',backdropFilter:'blur(6px)',
+            position:'fixed',
+            top: isMobile ? 0 : 96, left:0, right:0, bottom:0,
+            zIndex:200,
+            background: isMobile ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.45)',
+            backdropFilter:'blur(6px)',
             display:'flex',
-            alignItems: isMobile ? 'flex-end' : 'center',
+            alignItems: isMobile ? 'flex-end' : 'flex-start',
             justifyContent:'center',
-            padding: isMobile ? '0' : '24px',
+            padding: isMobile ? '0' : '20px 24px 0',
           }}>
             <div onClick={e=>e.stopPropagation()} style={{
               width:'100%', maxWidth:480,
               background:C.surface,
-              borderRadius: isMobile ? '24px 24px 0 0' : 20,
-              padding: isMobile ? '20px 20px 0 20px' : '28px 28px 28px',
-              maxHeight: isMobile ? 'calc(100vh - 80px)' : 'calc(100vh - 80px)',
+              borderRadius: isMobile ? '24px 24px 0 0' : '0 0 20px 20px',
+              maxHeight: isMobile ? 'calc(100vh - 96px)' : 'calc(100vh - 136px)',
               display:'flex', flexDirection:'column',
-              boxShadow:'0 -8px 48px rgba(0,0,0,0.35)',
+              boxShadow: isMobile ? '0 -8px 48px rgba(0,0,0,0.35)' : '0 8px 48px rgba(0,0,0,0.25)',
+              overflow:'hidden',
             }}>
-              {/* Drag handle */}
-              {isMobile && <div style={{width:40,height:4,borderRadius:2,background:C.border,margin:'0 auto 18px',flexShrink:0}}/>}
-              {/* Scrollable content */}
-              <div style={{overflowY:'auto',flex:1,paddingBottom: isMobile ? 'max(24px, env(safe-area-inset-bottom))' : '4px', scrollbarWidth:'none'}}>
-              <style>{`.modal-scroll::-webkit-scrollbar{display:none}`}</style>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
+              {/* Drag handle (mobile) / header padding (desktop) */}
+              <div style={{padding: isMobile ? '14px 20px 0' : '22px 24px 0', flexShrink:0}}>
+                {isMobile && <div style={{width:40,height:4,borderRadius:2,background:C.border,margin:'0 auto 14px'}}/>}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
                 <div style={{fontFamily:"'Playfair Display'",fontSize:20,color:C.text,fontWeight:600}}>
                   {addForm.eventType==='ours' ? '💕 New shared event' : '🌿 New event'}
                 </div>
                 <button onClick={()=>setShowAddModal(false)} style={{background:'none',border:'none',color:C.textDim,fontSize:22,cursor:'pointer',padding:'2px 6px',lineHeight:1}}>✕</button>
               </div>
+              </div>{/* end fixed header */}
+              {/* Scrollable form body */}
+              <div style={{overflowY:'auto',flex:1,padding: isMobile ? '0 20px' : '0 24px',paddingBottom:'max(24px, env(safe-area-inset-bottom))',WebkitOverflowScrolling:'touch',scrollbarWidth:'none'}}>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:18}}>
                 {[['mine','🌿','Just me',C.mint],['ours','💕','For us',C.lavender]].map(([type,emoji,label,color])=>(
                   <button key={type} onClick={()=>setAddForm(f=>({...f,eventType:type,isPrivate:false}))} style={{
@@ -890,13 +894,13 @@ export default function CalendarPage() {
                 color:'#fff', border:'none', borderRadius:14, padding:'14px',
                 fontSize:15, fontWeight:700, cursor:'pointer', opacity:saving?0.6:1,
                 boxShadow:`0 4px 16px ${addForm.eventType==='ours'?C.lavender:C.mint}44`,
-                marginTop:4,
+                marginTop:4, marginBottom:8,
               }}>
                 {saving ? '✿ Saving…' : addForm.recurring!=='none'&&addForm.recurUntil
                   ? `✿ Create ${getRecurringDates(addForm.date,addForm.recurring,addForm.recurUntil).length} events`
                   : addForm.eventType==='ours' ? '💕 Add shared event' : '✿ Add event'}
               </button>
-              </div>{/* end scroll wrapper */}
+              </div>{/* end scroll body */}
             </div>
           </div>
         )}
@@ -909,29 +913,30 @@ export default function CalendarPage() {
           const isEditing = !!editForm
           return (
             <div onClick={closeModal} style={{
-              position:'fixed', inset:0, zIndex:300,
-              background:'rgba(0,0,0,0.55)', backdropFilter:'blur(6px)',
+              position:'fixed',
+              top: isMobile ? 0 : 96, left:0, right:0, bottom:0,
+              zIndex:300,
+              background: isMobile ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.45)',
+              backdropFilter:'blur(6px)',
               display:'flex',
-              alignItems: isMobile ? 'flex-end' : 'center',
+              alignItems: isMobile ? 'flex-end' : 'flex-start',
               justifyContent:'center',
-              padding: isMobile ? '0' : '24px',
+              padding: isMobile ? '0' : '20px 24px 0',
             }}>
               <div onClick={e=>e.stopPropagation()} style={{
                 width:'100%', maxWidth:480,
                 background:C.surface,
-                borderRadius: isMobile ? '24px 24px 0 0' : 20,
-                padding: isMobile ? '20px 20px 0 20px' : '28px',
-                maxHeight: isMobile ? 'calc(100vh - 80px)' : 'calc(100vh - 80px)',
+                borderRadius: isMobile ? '24px 24px 0 0' : '0 0 20px 20px',
+                maxHeight: isMobile ? 'calc(100vh - 96px)' : 'calc(100vh - 136px)',
                 display:'flex', flexDirection:'column',
-                boxShadow:'0 -8px 48px rgba(0,0,0,0.3)',
+                boxShadow: isMobile ? '0 -8px 48px rgba(0,0,0,0.3)' : '0 8px 48px rgba(0,0,0,0.25)',
+                overflow:'hidden',
               }}>
-                {isMobile && <div style={{width:36,height:4,borderRadius:2,background:C.border,margin:'-6px auto 16px'}}/>}
-                {/* Drag handle */}
-                {isMobile && <div style={{width:40,height:4,borderRadius:2,background:C.border,margin:'0 auto 18px',flexShrink:0}}/>}
-                {/* Scrollable body */}
-                <div style={{overflowY:'auto',flex:1,paddingBottom:'max(24px, env(safe-area-inset-bottom))',scrollbarWidth:'none',WebkitOverflowScrolling:'touch'}}>
+                {/* Fixed header area */}
+                <div style={{padding: isMobile ? '14px 20px 0' : '22px 24px 0', flexShrink:0}}>
+                  {isMobile && <div style={{width:40,height:4,borderRadius:2,background:C.border,margin:'0 auto 14px'}}/>}
                 {/* Header */}
-                <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14}}>
+                <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14,paddingBottom:12,borderBottom:`1px solid ${C.border}`}}>
                   <div style={{flex:1,minWidth:0}}>
                     {isEditing
                       ? <input value={editForm.title} onChange={e=>setEditForm(f=>({...f,title:e.target.value}))} style={{...inp,fontFamily:"'Playfair Display'",fontSize:18,fontWeight:600,padding:'6px 10px'}}/>
@@ -950,9 +955,11 @@ export default function CalendarPage() {
                     <button onClick={closeModal} style={{background:'none',border:'none',color:C.textDim,fontSize:20,cursor:'pointer',padding:'2px 5px',lineHeight:1}}>✕</button>
                   </div>
                 </div>
-
+                </div>{/* end fixed header */}
+                {/* Scrollable body */}
+                <div style={{overflowY:'auto',flex:1,padding: isMobile ? '0 20px' : '0 24px',paddingBottom:'max(24px, env(safe-area-inset-bottom))',WebkitOverflowScrolling:'touch',scrollbarWidth:'none'}}>
                 {/* Detail rows */}
-                <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                <div style={{display:'flex',flexDirection:'column',gap:8,marginTop:14}}>
                   {/* Date */}
                   <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:C.bg,borderRadius:10}}>
                     <span style={{fontSize:16}}>📅</span>
@@ -996,14 +1003,14 @@ export default function CalendarPage() {
                 {/* Actions */}
                 {!isEditing && canDelete(ev) && (
                   <button onClick={()=>handleDelete(ev)} style={{
-                    marginTop:16, width:'100%', background:'none',
+                    marginTop:16, marginBottom:8, width:'100%', background:'none',
                     border:`1px solid ${C.rose}55`, borderRadius:12, padding:'10px',
                     fontSize:13, color:C.rose, cursor:'pointer', fontFamily:'inherit', fontWeight:600,
                   }}>🗑 Delete event</button>
                 )}
-                </div>{/* end scroll wrapper */}
+                </div>{/* end detail rows */}
+                </div>{/* end scroll body */}
               </div>
-            </div>
           )
         })()}
 
