@@ -780,37 +780,40 @@ export default function CalendarPage() {
         {/* ════ ADD EVENT MODAL ════ */}
         {showAddModal && (
           <div onClick={()=>setShowAddModal(false)} style={{
-            position:'fixed',
-            top: isMobile ? 0 : 96, left:0, right:0, bottom:0,
-            zIndex:200,
-            background: isMobile ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.45)',
-            backdropFilter:'blur(6px)',
+            position:'fixed', inset:0, zIndex:200,
+            background:'rgba(0,0,0,0.5)',
+            backdropFilter:'blur(8px)',
             display:'flex',
-            alignItems: isMobile ? 'flex-end' : 'flex-start',
+            alignItems: isMobile ? 'flex-end' : 'center',
             justifyContent:'center',
-            padding: isMobile ? '0' : '20px 24px 0',
+            padding: isMobile ? '0' : '24px',
           }}>
             <div onClick={e=>e.stopPropagation()} style={{
-              width:'100%', maxWidth:480,
+              width:'100%', maxWidth:500,
               background:C.surface,
-              borderRadius: isMobile ? '24px 24px 0 0' : '0 0 20px 20px',
-              maxHeight: isMobile ? 'calc(100vh - 96px)' : 'calc(100vh - 136px)',
+              borderRadius: isMobile ? '24px 24px 0 0' : 20,
+              maxHeight: isMobile ? 'calc(100svh - 60px)' : 'min(800px, calc(100vh - 48px))',
               display:'flex', flexDirection:'column',
-              boxShadow: isMobile ? '0 -8px 48px rgba(0,0,0,0.35)' : '0 8px 48px rgba(0,0,0,0.25)',
+              boxShadow: isMobile ? '0 -12px 60px rgba(0,0,0,0.4)' : '0 24px 80px rgba(0,0,0,0.35)',
               overflow:'hidden',
             }}>
-              {/* Drag handle (mobile) / header padding (desktop) */}
-              <div style={{padding: isMobile ? '14px 20px 0' : '22px 24px 0', flexShrink:0}}>
-                {isMobile && <div style={{width:40,height:4,borderRadius:2,background:C.border,margin:'0 auto 14px'}}/>}
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-                <div style={{fontFamily:"'Playfair Display'",fontSize:20,color:C.text,fontWeight:600}}>
-                  {addForm.eventType==='ours' ? '💕 New shared event' : '🌿 New event'}
+              {/* ── Sticky header ── */}
+              <div style={{padding: isMobile ? '16px 22px 14px' : '24px 28px 16px', flexShrink:0, borderBottom:`1px solid ${C.border}`}}>
+                {isMobile && <div style={{width:40,height:4,borderRadius:2,background:C.border,margin:'0 auto 16px'}}/>}
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <div style={{fontFamily:"'Playfair Display'",fontSize:21,color:C.text,fontWeight:600}}>
+                    {addForm.eventType==='ours' ? '💕 New shared event' : '🌿 New event'}
+                  </div>
+                  <button onClick={()=>setShowAddModal(false)} style={{
+                    background:C.bg, border:`1px solid ${C.border}`,
+                    color:C.textDim, cursor:'pointer',
+                    width:32, height:32, borderRadius:8, fontSize:14,
+                    display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0,
+                  }}>✕</button>
                 </div>
-                <button onClick={()=>setShowAddModal(false)} style={{background:'none',border:'none',color:C.textDim,fontSize:22,cursor:'pointer',padding:'2px 6px',lineHeight:1}}>✕</button>
               </div>
-              </div>{/* end fixed header */}
-              {/* Scrollable form body */}
-              <div style={{overflowY:'auto',flex:1,padding: isMobile ? '0 20px' : '0 24px',paddingBottom:'max(24px, env(safe-area-inset-bottom))',WebkitOverflowScrolling:'touch',scrollbarWidth:'none'}}>
+              {/* ── Scrollable form body ── */}
+              <div style={{overflowY:'auto',flex:1,padding: isMobile ? '20px 22px' : '22px 28px',WebkitOverflowScrolling:'touch',scrollbarWidth:'none'}}>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:18}}>
                 {[['mine','🌿','Just me',C.mint],['ours','💕','For us',C.lavender]].map(([type,emoji,label,color])=>(
                   <button key={type} onClick={()=>setAddForm(f=>({...f,eventType:type,isPrivate:false}))} style={{
@@ -889,18 +892,26 @@ export default function CalendarPage() {
                   </div>
                 </div>
               )}
-              <button onClick={handleAdd} disabled={saving} style={{
-                width:'100%', background: addForm.eventType==='ours' ? C.lavender : C.mint,
-                color:'#fff', border:'none', borderRadius:14, padding:'14px',
-                fontSize:15, fontWeight:700, cursor:'pointer', opacity:saving?0.6:1,
-                boxShadow:`0 4px 16px ${addForm.eventType==='ours'?C.lavender:C.mint}44`,
-                marginTop:4, marginBottom:8,
-              }}>
-                {saving ? '✿ Saving…' : addForm.recurring!=='none'&&addForm.recurUntil
-                  ? `✿ Create ${getRecurringDates(addForm.date,addForm.recurring,addForm.recurUntil).length} events`
-                  : addForm.eventType==='ours' ? '💕 Add shared event' : '✿ Add event'}
-              </button>
               </div>{/* end scroll body */}
+
+              {/* ── Sticky footer ── */}
+              <div style={{
+                padding: isMobile ? '14px 22px max(20px,env(safe-area-inset-bottom))' : '16px 28px 24px',
+                borderTop:`1px solid ${C.border}`, flexShrink:0, background:C.surface,
+              }}>
+                <button onClick={handleAdd} disabled={saving} style={{
+                  width:'100%',
+                  background: addForm.eventType==='ours' ? C.lavender : C.mint,
+                  color:'#fff', border:'none', borderRadius:14, padding:'15px',
+                  fontSize:15, fontWeight:700, cursor:'pointer',
+                  opacity:saving?0.6:1, transition:'all 0.2s',
+                  boxShadow:`0 4px 20px ${addForm.eventType==='ours'?C.lavender:C.mint}55`,
+                }}>
+                  {saving ? '✿ Saving…' : addForm.recurring!=='none'&&addForm.recurUntil
+                    ? `✿ Create ${getRecurringDates(addForm.date,addForm.recurring,addForm.recurUntil).length} events`
+                    : addForm.eventType==='ours' ? '💕 Add shared event' : '✿ Add event'}
+                </button>
+              </div>
             </div>
           </div>
         )}
