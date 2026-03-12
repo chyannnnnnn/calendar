@@ -12,7 +12,7 @@ function loadGoogleMaps(apiKey) {
       reject(new Error('AUTH_FAILURE'))
     }
     const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&loading=async`
     script.async = true
     script.onload  = () => {
       // Give gm_authFailure a moment to fire if auth fails
@@ -66,7 +66,7 @@ export default function LocationPicker({ value, onChange, apiKey, readOnly = fal
       const center = value?.lat ? { lat: value.lat, lng: value.lng } : { lat: 5.4141, lng: 100.3288 }
       const map = new G.Map(mapDivRef.current, {
         center, zoom: value?.lat ? 16 : 12,
-        disableDefaultUI: true, zoomControl: true,
+        disableDefaultUI: true, zoomControl: true, mapId: 'uscal_map',
       })
       mapRef.current = map
 
@@ -76,20 +76,20 @@ export default function LocationPicker({ value, onChange, apiKey, readOnly = fal
     return () => clearTimeout(t)
   }, [status])
 
-  function dropPin(lat, lng, animate, mapArg) {
+  async function dropPin(lat, lng, animate, mapArg) {
     const G   = window.google.maps
     const map = mapArg || mapRef.current
     if (!map) return
     if (markerRef.current) {
-      markerRef.current.setPosition({ lat, lng })
+      markerRef.current.position = { lat, lng }
     } else {
-      markerRef.current = new G.Marker({
-        position: { lat, lng }, map, draggable: true,
-        animation: animate ? G.Animation.DROP : null,
+      const { AdvancedMarkerElement } = await G.importLibrary('marker')
+      const pin = new AdvancedMarkerElement({ position: { lat, lng }, map, gmpDraggable: true })
+      pin.addListener('dragend', e => {
+        const pos = pin.position
+        reverseGeocode(pos.lat, pos.lng)
       })
-      markerRef.current.addListener('dragend', e =>
-        reverseGeocode(e.latLng.lat(), e.latLng.lng())
-      )
+      markerRef.current = pin
     }
     map.panTo({ lat, lng })
     reverseGeocode(lat, lng)
@@ -162,7 +162,7 @@ export default function LocationPicker({ value, onChange, apiKey, readOnly = fal
     onChange?.(null)
     setPinned(null)
     setQuery('')
-    if (markerRef.current) { markerRef.current.setMap(null); markerRef.current = null }
+    if (markerRef.current) { markerRef.current.map = null; markerRef.current = null }
   }
 
   // READ-ONLY: shown inside event detail modal
