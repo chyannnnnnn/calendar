@@ -207,67 +207,66 @@ function StickerTray({ onAdd, onClose, C, isMobile }) {
 // ─── Canvas Sticker Layer ──────────────────────────────────────────────────────
 function CanvasStickerLayer({ stickers, onChange, C }) {
   const [selected, setSelected] = React.useState(null)
-  const dragRef   = React.useRef(null) // { id, startX, startY, origX, origY }
-  const resizeRef = React.useRef(null) // { id, startX, startY, origSize }
-  const pinchRef  = React.useRef(null) // { id, origDist, origSize } for touch pinch
-  const containerRef = React.useRef(null)
 
-  // ── pointer helpers ──────────────────────────────────────────────────────────
-  function startDrag(e, id) {
-    e.stopPropagation()
-    setSelected(id)
-    const sticker = stickers.find(s => s.id === id)
-    dragRef.current = { id, startX: e.clientX, startY: e.clientY, origX: sticker.x, origY: sticker.y }
-  }
+  // All hot-path state lives in refs so event listeners never go stale
+  const containerRef  = React.useRef(null)
+  const stickersRef   = React.useRef(stickers)
+  const onChangeRef   = React.useRef(onChange)
+  const activeRef     = React.useRef(null)
+  // activeRef shape:
+  //   drag:   { mode:'drag',   id, startX, startY, origX, origY }
+  //   resize: { mode:'resize', id, startX, startY, origSize }
+  //   pinch:  { mode:'pinch',  id, origDist, origSize }
 
-  function startResize(e, id) {
-    e.stopPropagation()
-    const sticker = stickers.find(s => s.id === id)
-    resizeRef.current = { id, startX: e.clientX, startY: e.clientY, origSize: sticker.size }
-  }
+  // Keep refs in sync with props — no re-registering listeners needed
+  React.useEffect(() => { stickersRef.current = stickers },   [stickers])
+  React.useEffect(() => { onChangeRef.current = onChange },   [onChange])
 
+  // ── Register global listeners ONCE ──────────────────────────────────────────
   React.useEffect(() => {
-    function onMove(cx, cy) {
-      const rect = containerRef.current?.getBoundingClientRect()
-      if (!rect) return
-      if (dragRef.current) {
-        const { id, startX, startY, origX, origY } = dragRef.current
-        const newX = Math.max(0, Math.min(94, origX + ((cx - startX) / rect.width)  * 100))
-        const newY = Math.max(0, Math.min(94, origY + ((cy - startY) / rect.height) * 100))
-        onChange(stickers.map(s => s.id === id ? { ...s, x: newX, y: newY } : s))
+    function getRect() { return containerRef.current?.getBoundingClientRect() }
+
+    function applyMove(cx, cy) {
+      const a = activeRef.current
+      if (!a) return
+      const list = stickersRef.current
+      const emit = onChangeRef.current
+
+      if (a.mode === 'drag') {
+        const rect = getRect()
+        if (!rect) return
+        const newX = Math.max(0, Math.min(93, a.origX + ((cx - a.startX) / rect.width)  * 100))
+        const newY = Math.max(0, Math.min(93, a.origY + ((cy - a.startY) / rect.height) * 100))
+        emit(list.map(s => s.id === a.id ? { ...s, x: newX, y: newY } : s))
       }
-      if (resizeRef.current) {
-        const { id, startX, startY, origSize } = resizeRef.current
-        // Use diagonal distance for natural feel
-        const delta = (cx - startX) + (cy - startY)
-        const newSize = Math.max(20, Math.min(160, origSize + delta * 0.4))
-        onChange(stickers.map(s => s.id === id ? { ...s, size: newSize } : s))
+
+      if (a.mode === 'resize') {
+        const delta = (cx - a.startX) + (cy - a.startY)
+        const newSize = Math.max(20, Math.min(200, a.origSize + delta * 0.5))
+        emit(list.map(s => s.id === a.id ? { ...s, size: newSize } : s))
       }
     }
 
-    function onMouseMove(e) { onMove(e.clientX, e.clientY) }
-    function onMouseUp()    { dragRef.current = null; resizeRef.current = null }
+    function onMouseMove(e) { applyMove(e.clientX, e.clientY) }
+    function onMouseUp()    { activeRef.current = null }
 
     function onTouchMove(e) {
-      // Pinch-to-resize with two fingers
-      if (e.touches.length === 2 && pinchRef.current) {
+      const a = activeRef.current
+      if (!a) return
+      if (a.mode === 'pinch' && e.touches.length === 2) {
         e.preventDefault()
         const dx = e.touches[0].clientX - e.touches[1].clientX
         const dy = e.touches[0].clientY - e.touches[1].clientY
         const dist = Math.sqrt(dx*dx + dy*dy)
-        const { id, origDist, origSize } = pinchRef.current
-        const newSize = Math.max(20, Math.min(160, origSize * (dist / origDist)))
-        onChange(stickers.map(s => s.id === id ? { ...s, size: newSize } : s))
+        const newSize = Math.max(20, Math.min(200, a.origSize * (dist / a.origDist)))
+        onChangeRef.current(stickersRef.current.map(s => s.id === a.id ? { ...s, size: newSize } : s))
         return
       }
-      if (e.touches.length === 1) {
-        const t = e.touches[0]
-        onMove(t.clientX, t.clientY)
-      }
+      if (e.touches.length === 1) applyMove(e.touches[0].clientX, e.touches[0].clientY)
     }
-    function onTouchEnd() { dragRef.current = null; resizeRef.current = null; pinchRef.current = null }
+    function onTouchEnd() { activeRef.current = null }
 
-    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mousemove', onMouseMove, { passive: true })
     window.addEventListener('mouseup',   onMouseUp)
     window.addEventListener('touchmove', onTouchMove, { passive: false })
     window.addEventListener('touchend',  onTouchEnd)
@@ -277,122 +276,160 @@ function CanvasStickerLayer({ stickers, onChange, C }) {
       window.removeEventListener('touchmove', onTouchMove)
       window.removeEventListener('touchend',  onTouchEnd)
     }
-  }, [stickers, onChange])
+  }, []) // ← empty: listeners registered once, refs keep them fresh
 
-  function deleteSticker(id) { onChange(stickers.filter(s => s.id !== id)); setSelected(null) }
+  function startDrag(e, id) {
+    e.stopPropagation()
+    e.preventDefault()
+    setSelected(id)
+    const s = stickersRef.current.find(s => s.id === id)
+    activeRef.current = { mode:'drag', id, startX: e.clientX, startY: e.clientY, origX: s.x, origY: s.y }
+  }
+
+  function startResize(e, id) {
+    e.stopPropagation()
+    e.preventDefault()
+    const s = stickersRef.current.find(s => s.id === id)
+    activeRef.current = { mode:'resize', id, startX: e.clientX, startY: e.clientY, origSize: s.size }
+  }
+
+  function startTouchDrag(e, id) {
+    e.stopPropagation()
+    setSelected(id)
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const s = stickersRef.current.find(s => s.id === id)
+      activeRef.current = { mode:'pinch', id, origDist: Math.sqrt(dx*dx+dy*dy), origSize: s.size }
+    } else {
+      const t = e.touches[0]
+      const s = stickersRef.current.find(s => s.id === id)
+      activeRef.current = { mode:'drag', id, startX: t.clientX, startY: t.clientY, origX: s.x, origY: s.y }
+    }
+  }
+
+  function startTouchResize(e, id) {
+    e.stopPropagation()
+    const t = e.touches[0]
+    const s = stickersRef.current.find(s => s.id === id)
+    activeRef.current = { mode:'resize', id, startX: t.clientX, startY: t.clientY, origSize: s.size }
+  }
+
+  function deleteSticker(id) {
+    onChangeRef.current(stickersRef.current.filter(s => s.id !== id))
+    setSelected(null)
+  }
+
+  function setSize(id, px) {
+    onChangeRef.current(stickersRef.current.map(s => s.id === id ? { ...s, size: px } : s))
+  }
 
   const SIZES = [24, 40, 64, 96, 128]
 
   return (
     <div ref={containerRef}
       style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:20 }}
-      onClick={() => setSelected(null)}
+      onMouseDown={() => setSelected(null)}   // click on canvas → deselect
     >
       {stickers.map(s => {
         const isSel = selected === s.id
         const sz    = Math.round(s.size)
         return (
           <div key={s.id} style={{
-            position: 'absolute',
-            left: `${s.x}%`,
-            top:  `${s.y}%`,
-            width:  sz,
-            height: sz,
+            position:   'absolute',
+            left:       `${s.x}%`,
+            top:        `${s.y}%`,
+            width:      sz,
+            height:     sz,
             pointerEvents: 'auto',
             userSelect: 'none',
-            zIndex: isSel ? 30 : 21,
-            transition: 'filter 0.12s',
-            filter: isSel
-              ? 'drop-shadow(0 4px 12px rgba(0,0,0,0.3))'
-              : 'drop-shadow(0 1px 3px rgba(0,0,0,0.12))',
+            touchAction:'none',
+            zIndex:     isSel ? 30 : 21,
+            cursor:     isSel ? 'grabbing' : 'grab',
+            filter:     isSel
+              ? 'drop-shadow(0 4px 14px rgba(0,0,0,0.32))'
+              : 'drop-shadow(0 1px 4px rgba(0,0,0,0.14))',
           }}
             onMouseDown={e => startDrag(e, s.id)}
-            onTouchStart={e => {
-              e.stopPropagation()
-              setSelected(s.id)
-              if (e.touches.length === 2) {
-                const dx = e.touches[0].clientX - e.touches[1].clientX
-                const dy = e.touches[0].clientY - e.touches[1].clientY
-                pinchRef.current = { id: s.id, origDist: Math.sqrt(dx*dx+dy*dy), origSize: s.size }
-              } else {
-                const t = e.touches[0]
-                dragRef.current = { id: s.id, startX: t.clientX, startY: t.clientY, origX: s.x, origY: s.y }
-              }
-            }}
+            onTouchStart={e => startTouchDrag(e, s.id)}
           >
-            {/* ── Sticker image / emoji ── */}
-            <div style={{ width:'100%', height:'100%', cursor: isSel ? 'grabbing' : 'grab', lineHeight:1 }}>
-              {s.type === 'emoji'
-                ? <span style={{ fontSize: sz * 0.82, lineHeight:1, display:'block', textAlign:'center', pointerEvents:'none' }}>{s.value}</span>
-                : <img src={s.value} alt="" draggable={false}
-                    style={{ width:'100%', height:'100%', objectFit:'contain', display:'block', pointerEvents:'none' }}/>
-              }
-            </div>
+            {/* ── Sticker content ── */}
+            {s.type === 'emoji'
+              ? <span style={{ fontSize: sz * 0.82, lineHeight:1, display:'block', textAlign:'center', pointerEvents:'none', userSelect:'none' }}>{s.value}</span>
+              : <img src={s.value} alt="" draggable={false}
+                  style={{ width:'100%', height:'100%', objectFit:'contain', display:'block', pointerEvents:'none' }}/>
+            }
 
             {/* ── Selection ring ── */}
             {isSel && (
               <div style={{
-                position:'absolute', inset:-3,
-                border:`2px dashed ${C.peach}`,
-                borderRadius:8, pointerEvents:'none',
+                position:'absolute', inset:-4,
+                border:`2px dashed ${C.peach}99`,
+                borderRadius:10, pointerEvents:'none',
+                animation:'none',
               }}/>
             )}
 
-            {/* ── Controls (shown when selected) ── */}
+            {/* ── Controls ── */}
             {isSel && <>
-              {/* Delete */}
-              <div onClick={e=>{e.stopPropagation();deleteSticker(s.id)}} style={{
-                position:'absolute', top:-11, right:-11,
-                width:22, height:22, borderRadius:'50%',
-                background:'#E04545', color:'#fff',
-                fontSize:12, fontWeight:800,
-                display:'flex', alignItems:'center', justifyContent:'center',
-                cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.35)', zIndex:32,
-              }}>✕</div>
 
-              {/* Resize handle — bottom-right */}
+              {/* ✕ Delete — top-left */}
               <div
-                onMouseDown={e=>{ e.stopPropagation(); startResize(e, s.id) }}
-                onTouchStart={e=>{
-                  e.stopPropagation()
-                  const t = e.touches[0]
-                  resizeRef.current = { id:s.id, startX:t.clientX, startY:t.clientY, origSize:s.size }
-                }}
+                onMouseDown={e => { e.stopPropagation(); deleteSticker(s.id) }}
+                onTouchEnd={e  => { e.stopPropagation(); deleteSticker(s.id) }}
                 style={{
-                  position:'absolute', bottom:-10, right:-10,
-                  width:22, height:22, borderRadius:'50%',
+                  position:'absolute', top:-13, left:-13,
+                  width:26, height:26, borderRadius:'50%',
+                  background:'#E04545', color:'#fff',
+                  fontSize:13, fontWeight:800, lineHeight:'26px', textAlign:'center',
+                  cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.3)',
+                  zIndex:33, userSelect:'none',
+                }}>✕</div>
+
+              {/* ↔ Resize handle — bottom-right */}
+              <div
+                onMouseDown={e => startResize(e, s.id)}
+                onTouchStart={e => startTouchResize(e, s.id)}
+                style={{
+                  position:'absolute', bottom:-13, right:-13,
+                  width:26, height:26, borderRadius:'50%',
                   background:C.peach, cursor:'nwse-resize',
                   display:'flex', alignItems:'center', justifyContent:'center',
-                  boxShadow:'0 2px 8px rgba(0,0,0,0.25)', zIndex:32,
-                  touchAction:'none',
+                  boxShadow:'0 2px 8px rgba(0,0,0,0.25)',
+                  zIndex:33, touchAction:'none',
                 }}
               >
-                <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                  <path d="M2 9L9 2M6 9L9 6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 10L10 2M7 10L10 7" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
               </div>
 
-              {/* Quick-size buttons */}
-              <div style={{
-                position:'absolute', bottom:-38, left:'50%', transform:'translateX(-50%)',
-                display:'flex', gap:3, background:C.surface,
-                border:`1px solid ${C.border}`, borderRadius:20,
-                padding:'3px 6px', boxShadow:'0 4px 12px rgba(0,0,0,0.15)',
-                zIndex:32, whiteSpace:'nowrap',
-              }}>
-                {SIZES.map(px=>(
+              {/* Quick-size pill */}
+              <div
+                onMouseDown={e => e.stopPropagation()}
+                style={{
+                  position:'absolute', top:-46, left:'50%', transform:'translateX(-50%)',
+                  display:'flex', gap:2, background:C.surface,
+                  border:`1px solid ${C.border}`, borderRadius:20,
+                  padding:'4px 8px', boxShadow:'0 4px 16px rgba(0,0,0,0.18)',
+                  zIndex:33, whiteSpace:'nowrap',
+                }}>
+                {SIZES.map(px => (
                   <button key={px}
-                    onClick={e=>{e.stopPropagation(); onChange(stickers.map(ss=>ss.id===s.id?{...ss,size:px}:ss))}}
+                    onMouseDown={e => { e.stopPropagation(); setSize(s.id, px) }}
+                    onTouchEnd={e  => { e.stopPropagation(); setSize(s.id, px) }}
                     style={{
-                      background: sz===px ? C.peach : 'transparent',
-                      color: sz===px ? '#fff' : C.textDim,
-                      border:'none', borderRadius:12, padding:'2px 6px',
-                      fontSize:9, fontWeight:700, cursor:'pointer',
-                      transition:'all 0.1s',
+                      background: Math.abs(sz-px)<4 ? C.peach : 'transparent',
+                      color:      Math.abs(sz-px)<4 ? '#fff'  : C.textDim,
+                      border:'none', borderRadius:12,
+                      padding:'3px 7px', fontSize:10,
+                      fontWeight:700, cursor:'pointer',
+                      fontFamily:'inherit', minWidth:28,
                     }}
                   >{px}</button>
                 ))}
               </div>
+
             </>}
           </div>
         )
@@ -1381,8 +1418,6 @@ export default function CalendarPage() {
               </div>
           )
         })()}
-
-
 
       {/* ── Toast notification ── */}
       {toast && (
