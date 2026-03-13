@@ -135,8 +135,14 @@ export default function ProfilePage() {
         <div style={{fontFamily:"'Playfair Display'", fontSize:20, color:C.text, flex:1}}>
           us<span style={{color:C.peach}}>.</span>cal
         </div>
-        <button onClick={toggleTheme} style={{background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:'5px 10px', fontSize:15, cursor:'pointer'}}>
-          {mode==='light'?'🌙':'☀️'}
+        <button onClick={toggleTheme} style={{
+          display:'flex',alignItems:'center',gap:6,
+          background:C.surface,border:`1px solid ${C.border}`,
+          borderRadius:20,padding:'6px 14px',cursor:'pointer',
+          fontSize:13,fontWeight:700,color:C.textMid,fontFamily:'inherit',
+        }}>
+          <span style={{fontSize:15}}>{mode==='light'?'🌙':'☀️'}</span>
+          <span>{mode==='light'?'Dark':'Light'}</span>
         </button>
       </header>
 

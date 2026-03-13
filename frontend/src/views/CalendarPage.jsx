@@ -791,50 +791,230 @@ export default function CalendarPage() {
             </div>
           )}
 
-          {/* Desktop: theme + sign out */}
+          {/* Desktop: theme toggle + settings dropdown */}
           {!isMobile && (
-            <div style={{display:'flex',alignItems:'center',gap:1,flexShrink:0}}>
-              <button onClick={toggleTheme} style={{background:'none',border:'none',cursor:'pointer',width:30,height:30,borderRadius:8,fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',color:C.textMid}}>{mode==='light'?'🌙':'☀️'}</button>
-              {isLinked && <button onClick={handleUnlink} style={{background:'none',border:'none',cursor:'pointer',padding:'0 6px',height:30,fontSize:9,color:C.textDim,fontFamily:'inherit',fontWeight:700,letterSpacing:'0.03em'}}>UNLINK</button>}
-              <button onClick={signOut} style={{background:'none',border:'none',cursor:'pointer',padding:'0 6px',height:30,fontSize:9,color:C.textDim,fontFamily:'inherit',fontWeight:700,letterSpacing:'0.03em'}}>OUT</button>
+            <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0,position:'relative'}}>
+              {/* Theme toggle pill */}
+              <button onClick={toggleTheme} style={{
+                display:'flex',alignItems:'center',gap:6,
+                background:C.surface,border:`1px solid ${C.border}`,
+                borderRadius:20,padding:'5px 12px',cursor:'pointer',
+                fontSize:12,fontWeight:700,color:C.textMid,fontFamily:'inherit',
+                transition:'all 0.15s',
+              }}>
+                <span style={{fontSize:14}}>{mode==='light'?'🌙':'☀️'}</span>
+                <span>{mode==='light'?'Dark':'Light'}</span>
+              </button>
+              {/* Account menu button */}
+              <button
+                onClick={()=>setMenuOpen(m=>!m)}
+                style={{
+                  display:'flex',alignItems:'center',gap:6,
+                  background: menuOpen ? C.lavender+'22' : C.surface,
+                  border:`1px solid ${menuOpen ? C.lavender+'66' : C.border}`,
+                  borderRadius:20,padding:'5px 12px 5px 8px',cursor:'pointer',
+                  fontSize:12,fontWeight:700,color:menuOpen?C.lavender:C.textMid,fontFamily:'inherit',
+                  transition:'all 0.15s',
+                }}>
+                <div style={{
+                  width:22,height:22,borderRadius:'50%',
+                  background:C.mint+'33',border:`1.5px solid ${C.mint}66`,
+                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,
+                }}>🌿</div>
+                <span>{user?.name||'Account'}</span>
+                <span style={{fontSize:9,opacity:0.6}}>{menuOpen?'▲':'▼'}</span>
+              </button>
+              {/* Desktop dropdown */}
+              {menuOpen && (
+                <div style={{
+                  position:'absolute',top:'calc(100% + 8px)',right:0,zIndex:500,
+                  background:C.surface,border:`1px solid ${C.border}`,
+                  borderRadius:16,padding:8,minWidth:200,
+                  boxShadow:`0 8px 32px rgba(0,0,0,0.18)`,
+                }}>
+                  {/* User info */}
+                  <div style={{padding:'10px 12px 8px',borderBottom:`1px solid ${C.border}`,marginBottom:6}}>
+                    <div style={{fontSize:13,fontWeight:700,color:C.text}}>{user?.name||'You'}</div>
+                    <div style={{fontSize:11,color:C.textDim,marginTop:1}}>{user?.email||''}</div>
+                  </div>
+                  {/* Profile links */}
+                  <button onClick={()=>{navigate('/profile?view=mine');setMenuOpen(false)}} style={{
+                    width:'100%',display:'flex',alignItems:'center',gap:10,
+                    background:'none',border:'none',borderRadius:10,padding:'9px 12px',
+                    cursor:'pointer',fontSize:13,color:C.text,fontFamily:'inherit',fontWeight:600,
+                    transition:'background 0.1s',textAlign:'left',
+                  }}
+                    onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+                    onMouseLeave={e=>e.currentTarget.style.background='none'}
+                  >
+                    <span style={{fontSize:16}}>🌿</span> My Profile
+                  </button>
+                  {isLinked && <button onClick={()=>{navigate('/profile?view=partner');setMenuOpen(false)}} style={{
+                    width:'100%',display:'flex',alignItems:'center',gap:10,
+                    background:'none',border:'none',borderRadius:10,padding:'9px 12px',
+                    cursor:'pointer',fontSize:13,color:C.text,fontFamily:'inherit',fontWeight:600,
+                    transition:'background 0.1s',textAlign:'left',
+                  }}
+                    onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+                    onMouseLeave={e=>e.currentTarget.style.background='none'}
+                  >
+                    <span style={{fontSize:16}}>🌷</span> {partner?.name||'Partner'}'s Profile
+                  </button>}
+                  <div style={{height:1,background:C.border,margin:'6px 0'}}/>
+                  {/* Unlink */}
+                  {isLinked && <button onClick={()=>{handleUnlink();setMenuOpen(false)}} style={{
+                    width:'100%',display:'flex',alignItems:'center',gap:10,
+                    background:'none',border:'none',borderRadius:10,padding:'9px 12px',
+                    cursor:'pointer',fontSize:13,color:C.rose,fontFamily:'inherit',fontWeight:600,
+                    transition:'background 0.1s',textAlign:'left',
+                  }}
+                    onMouseEnter={e=>e.currentTarget.style.background=C.rose+'12'}
+                    onMouseLeave={e=>e.currentTarget.style.background='none'}
+                  >
+                    <span style={{fontSize:16}}>💔</span> Disconnect partner
+                  </button>}
+                  {/* Sign out */}
+                  <button onClick={signOut} style={{
+                    width:'100%',display:'flex',alignItems:'center',gap:10,
+                    background:'none',border:'none',borderRadius:10,padding:'9px 12px',
+                    cursor:'pointer',fontSize:13,color:C.textMid,fontFamily:'inherit',fontWeight:600,
+                    transition:'background 0.1s',textAlign:'left',
+                  }}
+                    onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+                    onMouseLeave={e=>e.currentTarget.style.background='none'}
+                  >
+                    <span style={{fontSize:16}}>🚪</span> Sign out
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Mobile: hamburger */}
+          {/* Mobile: account avatar button */}
           {isMobile && (
-            <button onClick={()=>setMenuOpen(m=>!m)} style={{background:'none',border:`1px solid ${C.border}`,borderRadius:8,width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:C.textMid,fontSize:16,flexShrink:0}}>
-              {menuOpen ? '✕' : '☰'}
+            <button onClick={()=>setMenuOpen(m=>!m)} style={{
+              background: menuOpen ? C.lavender+'22' : C.surface,
+              border:`1.5px solid ${menuOpen ? C.lavender+'88' : C.border}`,
+              borderRadius:'50%',width:34,height:34,
+              display:'flex',alignItems:'center',justifyContent:'center',
+              cursor:'pointer',fontSize:16,flexShrink:0,transition:'all 0.15s',
+            }}>
+              {menuOpen ? '✕' : '🌿'}
             </button>
           )}
         </div>
 
-        {/* ── Mobile dropdown menu ── */}
+        {/* ── Mobile bottom sheet menu ── */}
         {isMobile && menuOpen && (
-          <div style={{background:C.surface,borderTop:`1px solid ${C.border}`,padding:'8px 12px 12px',display:'flex',flexDirection:'column',gap:6}}>
-            {/* Profile pills */}
-            <div style={{display:'flex',gap:6}}>
-              {[
-                {key:'you',     label:user?.name||'You',    emoji:'🌿', route:'/profile?view=mine'},
-                {key:'partner', label:partner?.name||'Partner', emoji:'🌷', route:'/profile?view=partner'},
-              ].map(u=>(
-                <button key={u.key} onClick={()=>{navigate(u.route);setMenuOpen(false)}} style={{
-                  flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:5,
-                  background:USER_COLORS[u.key].color+'12',border:`1px solid ${USER_COLORS[u.key].color}44`,
-                  borderRadius:20,padding:'7px 10px',
-                  fontSize:12,color:USER_COLORS[u.key].color,cursor:'pointer',fontFamily:'inherit',fontWeight:700,
+          <>
+            {/* Backdrop */}
+            <div onClick={()=>setMenuOpen(false)} style={{
+              position:'fixed',inset:0,zIndex:498,background:'rgba(0,0,0,0.3)',
+              backdropFilter:'blur(2px)',
+            }}/>
+            {/* Sheet */}
+            <div style={{
+              position:'fixed',bottom:0,left:0,right:0,zIndex:499,
+              background:C.surface,borderRadius:'24px 24px 0 0',
+              padding:'0 0 max(20px, env(safe-area-inset-bottom)) 0',
+              boxShadow:'0 -8px 40px rgba(0,0,0,0.25)',
+            }}>
+              {/* Drag handle */}
+              <div style={{display:'flex',justifyContent:'center',padding:'12px 0 4px'}}>
+                <div style={{width:40,height:4,borderRadius:2,background:C.border}}/>
+              </div>
+              {/* User info header */}
+              <div style={{padding:'8px 20px 14px',borderBottom:`1px solid ${C.border}`,display:'flex',alignItems:'center',gap:12}}>
+                <div style={{
+                  width:46,height:46,borderRadius:'50%',flexShrink:0,
+                  background:C.mint+'22',border:`2px solid ${C.mint}55`,
+                  display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,
+                }}>🌿</div>
+                <div>
+                  <div style={{fontSize:15,fontWeight:800,color:C.text}}>{user?.name||'You'}</div>
+                  <div style={{fontSize:12,color:C.textDim,marginTop:1}}>{user?.email||''}</div>
+                </div>
+              </div>
+              {/* Menu items */}
+              <div style={{padding:'8px 12px'}}>
+                {/* Profile links */}
+                <button onClick={()=>{navigate('/profile?view=mine');setMenuOpen(false)}} style={{
+                  width:'100%',display:'flex',alignItems:'center',gap:14,
+                  background:'none',border:'none',borderRadius:14,padding:'13px 10px',
+                  cursor:'pointer',fontSize:15,color:C.text,fontFamily:'inherit',fontWeight:600,textAlign:'left',
                 }}>
-                  {u.emoji} {u.label}
+                  <span style={{
+                    width:36,height:36,borderRadius:12,
+                    background:C.mint+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0,
+                  }}>🌿</span>
+                  <span>My Profile</span>
                 </button>
-              ))}
+                {isLinked && <button onClick={()=>{navigate('/profile?view=partner');setMenuOpen(false)}} style={{
+                  width:'100%',display:'flex',alignItems:'center',gap:14,
+                  background:'none',border:'none',borderRadius:14,padding:'13px 10px',
+                  cursor:'pointer',fontSize:15,color:C.text,fontFamily:'inherit',fontWeight:600,textAlign:'left',
+                }}>
+                  <span style={{
+                    width:36,height:36,borderRadius:12,
+                    background:C.rose+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0,
+                  }}>🌷</span>
+                  <span>{partner?.name||'Partner'}'s Profile</span>
+                </button>}
+                {/* Dark mode toggle row */}
+                <button onClick={()=>{toggleTheme();}} style={{
+                  width:'100%',display:'flex',alignItems:'center',gap:14,
+                  background:'none',border:'none',borderRadius:14,padding:'13px 10px',
+                  cursor:'pointer',fontSize:15,color:C.text,fontFamily:'inherit',fontWeight:600,textAlign:'left',
+                }}>
+                  <span style={{
+                    width:36,height:36,borderRadius:12,
+                    background:C.lavender+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0,
+                  }}>{mode==='light'?'🌙':'☀️'}</span>
+                  <span style={{flex:1}}>{mode==='light'?'Dark mode':'Light mode'}</span>
+                  {/* Toggle pill visual */}
+                  <div style={{
+                    width:44,height:26,borderRadius:13,flexShrink:0,
+                    background: mode==='dark' ? C.lavender : C.border,
+                    position:'relative',transition:'background 0.2s',
+                  }}>
+                    <div style={{
+                      position:'absolute',top:3,
+                      left: mode==='dark' ? 21 : 3,
+                      width:20,height:20,borderRadius:'50%',
+                      background:'#fff',boxShadow:'0 1px 4px rgba(0,0,0,0.25)',
+                      transition:'left 0.2s',
+                    }}/>
+                  </div>
+                </button>
+                <div style={{height:1,background:C.border,margin:'4px 10px'}}/>
+                {/* Disconnect partner */}
+                {isLinked && <button onClick={()=>{handleUnlink();setMenuOpen(false)}} style={{
+                  width:'100%',display:'flex',alignItems:'center',gap:14,
+                  background:'none',border:'none',borderRadius:14,padding:'13px 10px',
+                  cursor:'pointer',fontSize:15,color:C.rose,fontFamily:'inherit',fontWeight:600,textAlign:'left',
+                }}>
+                  <span style={{
+                    width:36,height:36,borderRadius:12,
+                    background:C.rose+'18',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0,
+                  }}>💔</span>
+                  <span>Disconnect partner</span>
+                </button>}
+                {/* Sign out */}
+                <button onClick={signOut} style={{
+                  width:'100%',display:'flex',alignItems:'center',gap:14,
+                  background:'none',border:'none',borderRadius:14,padding:'13px 10px',
+                  cursor:'pointer',fontSize:15,color:C.textMid,fontFamily:'inherit',fontWeight:600,textAlign:'left',
+                }}>
+                  <span style={{
+                    width:36,height:36,borderRadius:12,
+                    background:C.bg,border:`1px solid ${C.border}`,
+                    display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0,
+                  }}>🚪</span>
+                  <span>Sign out</span>
+                </button>
+              </div>
             </div>
-            <div style={{display:'flex',gap:6}}>
-              <button onClick={()=>{toggleTheme;setMenuOpen(false)}} style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:'7px',fontSize:13,cursor:'pointer',color:C.textMid}} onClick={toggleTheme}>
-                {mode==='light'?'🌙 Dark':'☀️ Light'}
-              </button>
-              {isLinked && <button onClick={()=>{handleUnlink();setMenuOpen(false)}} style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:'7px',fontSize:11,cursor:'pointer',color:C.textDim,fontWeight:700}}>Unlink 💔</button>}
-              <button onClick={signOut} style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:'7px',fontSize:11,cursor:'pointer',color:C.textDim,fontWeight:700}}>Sign out</button>
-            </div>
-          </div>
+          </>
         )}
 
         {/* ── Not linked banner ── */}
