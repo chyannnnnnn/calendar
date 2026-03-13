@@ -363,9 +363,12 @@ export default function CalendarPage() {
   function getRecurringDates(startDate, recurring, recurUntil) {
     if (!startDate) return []
     if (recurring === 'none' || !recurUntil) return [startDate]
+    // Parse dates as LOCAL time (not UTC) by splitting the string manually
+    // This avoids timezone shift bugs where "2026-03-13" becomes March 12 in UTC+8
+    const parseLocal = (s) => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d) }
     const dates = []
-    const current = new Date(startDate)
-    const until   = new Date(recurUntil)
+    const current = parseLocal(startDate)
+    const until   = parseLocal(recurUntil)
     while (current <= until) {
       dates.push(toDateStr(current))
       if (recurring === 'daily')        current.setDate(current.getDate() + 1)
@@ -696,62 +699,95 @@ export default function CalendarPage() {
                     <span style={{fontSize:13}}>✦</span>Free together
                   </div>
                 </div>
-                <div style={{background:C.surface,borderRadius:14,overflow:'hidden',border:`1px solid ${C.border}`}}>
-                  {HOUR_ROWS.map(hour=>{
-                    const dayEvs=eventsForDate(navDateStr)
-                    const freeSlots=findFreeSlots(navDateStr)
-                    const isFree=freeSlots.some(([s,e])=>s<=hour*60&&e>=(hour+1)*60)
-                    const hourEvs=dayEvs.filter(e=>Math.floor(timeToMins(e.start_time)/60)===hour)
-                    return (
-                      <div key={hour} style={{display:'flex',minHeight:isMobile?52:64,borderBottom:`1px solid ${C.border}`,background:isFree?C.gold+'08':'transparent'}}>
-                        <div style={{width:isMobile?44:56,flexShrink:0,padding:'8px 8px 8px 4px',fontSize:isMobile?9:11,color:C.textDim,borderRight:`1px solid ${C.border}`,textAlign:'right',fontWeight:600}}>
-                          {String(hour%12||12).padStart(2,'0')}{hour<12?'am':'pm'}
-                        </div>
-                        <div style={{flex:1,padding:'5px 10px',display:'flex',gap:6,flexWrap:'wrap',position:'relative'}}>
-                          {isFree&&<div style={{position:'absolute',right:10,top:6,fontSize:9,color:C.gold,opacity:0.6,fontWeight:700}}>✦ both free</div>}
-                          {hourEvs.map(ev=>(
+                {/* ── Day view: time-based grid with proper event spanning ── */}
+                {(()=>{
+                  const ROW_H = isMobile ? 52 : 64  // px per hour
+                  const dayEvs = eventsForDate(navDateStr)
+                  const freeSlots = findFreeSlots(navDateStr)
+                  const totalH = HOUR_ROWS.length * ROW_H
+                  const firstHour = HOUR_ROWS[0]
+                  return (
+                    <div style={{background:C.surface,borderRadius:14,overflow:'hidden',border:`1px solid ${C.border}`,position:'relative'}}>
+                      {/* Hour row backgrounds + labels */}
+                      {HOUR_ROWS.map(hour=>{
+                        const isFree = freeSlots.some(([s,e])=>s<=hour*60&&e>=(hour+1)*60)
+                        return (
+                          <div key={hour} style={{display:'flex',height:ROW_H,borderBottom:`1px solid ${C.border}`,background:isFree?C.gold+'08':'transparent',boxSizing:'border-box'}}>
+                            <div style={{width:isMobile?44:56,flexShrink:0,padding:'6px 8px 0 4px',fontSize:isMobile?9:11,color:C.textDim,borderRight:`1px solid ${C.border}`,textAlign:'right',fontWeight:600,lineHeight:1}}>
+                              {String(hour%12||12)}{hour<12?'am':'pm'}
+                            </div>
+                            <div style={{flex:1,position:'relative'}}>
+                              {isFree&&<div style={{position:'absolute',right:8,top:5,fontSize:9,color:C.gold,opacity:0.55,fontWeight:700,pointerEvents:'none'}}>✦ free</div>}
+                            </div>
+                          </div>
+                        )
+                      })}
+                      {/* Absolutely positioned event blocks */}
+                      <div style={{position:'absolute',top:0,left:isMobile?44:56,right:0,bottom:0,pointerEvents:'none'}}>
+                        {dayEvs.map((ev,idx)=>{
+                          const startMins = timeToMins(ev.start_time)
+                          const endMins   = timeToMins(ev.end_time) || startMins + 60
+                          const topPct    = ((startMins - firstHour*60) / 60) * ROW_H
+                          const heightPx  = Math.max(((endMins - startMins) / 60) * ROW_H, 28)
+                          if (startMins < firstHour*60) return null // before visible range
+                          const loc = parseLocation(ev.location)
+                          const mapsUrl = loc?.lat
+                            ? `https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lng}`
+                            : loc?.name ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.name)}` : null
+                          return (
                             <div key={ev.id} onClick={()=>setSelectedEvent(ev)} style={{
-                              background:eventColor(ev)+'18',
-                              border:`1px solid ${eventColor(ev)}55`,
-                              borderRadius:8,padding:'4px 9px',fontSize:10,color:eventColor(ev),
-                              display:'flex',flexDirection:'column',gap:2,minWidth:100,cursor:'pointer',
+                              position:'absolute',
+                              top: topPct,
+                              left: 6 + (idx % 2) * 4, // slight stagger if overlapping
+                              right: 6,
+                              height: heightPx,
+                              background: eventColor(ev)+'22',
+                              border: `1.5px solid ${eventColor(ev)}66`,
+                              borderLeft: `4px solid ${eventColor(ev)}`,
+                              borderRadius: 10,
+                              padding: '6px 10px',
+                              cursor: 'pointer',
+                              pointerEvents: 'auto',
+                              overflow: 'hidden',
+                              boxSizing: 'border-box',
+                              display: 'flex', flexDirection: 'column', gap: 2,
                             }}>
-                              <span style={{fontWeight:700,display:'flex',alignItems:'center',gap:5}}>
-                                <span onClick={e=>{e.stopPropagation();setStickerTarget(ev.id)}} title="Add sticker">
-                                  <EventSticker sticker={stickers[ev.id]} size={16} C={C}/>
+                              <div style={{display:'flex',alignItems:'center',gap:6,fontWeight:700,fontSize:12,color:eventColor(ev),lineHeight:1.2}}>
+                                <span onClick={e=>{e.stopPropagation();setStickerTarget(ev.id)}} style={{flexShrink:0}}>
+                                  <EventSticker sticker={stickers[ev.id]} size={14} C={C}/>
                                 </span>
-                                {eventLabel(ev)?.replace(/^💑\s?/,'')}
-                              </span>
-                              <span style={{fontSize:10,opacity:0.7,fontWeight:500}}>{ev.start_time} – {ev.end_time}</span>
-                              {ev.location&&(()=>{
-                                const loc=parseLocation(ev.location)
-                                if(!loc?.name) return null
-                                const mapsUrl=loc.lat?`https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lng}`:`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.name)}`
-                                return <a href={mapsUrl} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()}
-                                  style={{fontSize:8,color:C.textDim,display:'flex',alignItems:'center',gap:2,textDecoration:'none'}}
+                                <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{eventLabel(ev)?.replace(/^💑\s?/,'')}</span>
+                              </div>
+                              {heightPx > 36 && (
+                                <div style={{fontSize:10,color:eventColor(ev),opacity:0.75,fontWeight:500}}>{ev.start_time} – {ev.end_time}</div>
+                              )}
+                              {heightPx > 54 && loc?.name && mapsUrl && (
+                                <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                                  onClick={e=>e.stopPropagation()}
+                                  style={{fontSize:10,color:C.textDim,display:'flex',alignItems:'center',gap:3,textDecoration:'none',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}
                                   onMouseEnter={e=>e.currentTarget.style.color=C.peach}
                                   onMouseLeave={e=>e.currentTarget.style.color=C.textDim}
-                                >📍 {loc.name} <span style={{opacity:0.5}}>↗</span></a>
-                              })()}
-                              {canDelete(ev)&&(
+                                >📍 {loc.name}</a>
+                              )}
+                              {canDelete(ev) && heightPx > 60 && (
                                 <button onClick={e=>quickDelete(e,ev)} style={{
-                                  background: confirmDelete===ev.id ? C.rose : C.bg,
-                                  border:`1px solid ${C.rose}44`, borderRadius:6,
-                                  cursor:'pointer', fontSize:10, padding:'2px 7px',
+                                  background: confirmDelete===ev.id ? C.rose : 'transparent',
+                                  border:`1px solid ${C.rose}55`, borderRadius:6,
+                                  cursor:'pointer', fontSize:10, padding:'2px 8px',
                                   color: confirmDelete===ev.id ? '#fff' : C.rose,
-                                  fontWeight:700, alignSelf:'flex-end', transition:'all 0.2s',
-                                  fontFamily:'inherit',
+                                  fontWeight:700, alignSelf:'flex-start', marginTop:'auto',
+                                  transition:'all 0.15s', fontFamily:'inherit', pointerEvents:'auto',
                                 }}>
                                   {confirmDelete===ev.id ? '✓ sure?' : '🗑 remove'}
                                 </button>
                               )}
                             </div>
-                          ))}
-                        </div>
+                          )
+                        })}
                       </div>
-                    )
-                  })}
-                </div>
+                    </div>
+                  )
+                })()}
                 {(() => {
                   const slots=findFreeSlots(navDateStr)
                   return slots.length>0?(
