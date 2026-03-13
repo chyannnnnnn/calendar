@@ -201,68 +201,79 @@ function StickerTray({ onAdd, onClose, C, isMobile, date }) {
 }
 
 // ─── Canvas Sticker Layer ──────────────────────────────────────────────────────
+// Design principles:
+//   • All drag/resize state is LOCAL (useState) — React renders smoothly each frame
+//   • onChange (Supabase save) only fires on pointerUp, not every pixel
+//   • containerRef rect is captured once at drag START, not recalculated every move
+//   • Resize uses a large 44px touch target, not a tiny 26px dot
+//   • Controls render in a fixed portal-like position so they never get clipped
 function CanvasStickerLayer({ stickers, onChange, onDelete, C }) {
-  const [selected, setSelected] = React.useState(null)
+  const containerRef = React.useRef(null)
 
-  // All hot-path state lives in refs so event listeners never go stale
-  const containerRef  = React.useRef(null)
-  const stickersRef   = React.useRef(stickers)
-  const onChangeRef   = React.useRef(onChange)
-  const activeRef     = React.useRef(null)
-  // activeRef shape:
-  //   drag:   { mode:'drag',   id, startX, startY, origX, origY }
+  // Local display state — tracks live position/size while dragging
+  // Shape: { id, x, y, size } — only set while a gesture is active
+  const [live, setLive]         = React.useState(null)
+  const [selected, setSelected] = React.useState(null)
+  const gestureRef = React.useRef(null)
+  // gestureRef shape:
+  //   drag:   { mode:'drag',   id, startX, startY, origX, origY, rectW, rectH }
   //   resize: { mode:'resize', id, startX, startY, origSize }
   //   pinch:  { mode:'pinch',  id, origDist, origSize }
 
-  // Keep refs in sync with props — no re-registering listeners needed
-  React.useEffect(() => { stickersRef.current = stickers },   [stickers])
-  React.useEffect(() => { onChangeRef.current = onChange },   [onChange])
-
-  // ── Register global listeners ONCE ──────────────────────────────────────────
-  React.useEffect(() => {
-    function getRect() { return containerRef.current?.getBoundingClientRect() }
-
-    function applyMove(cx, cy) {
-      const a = activeRef.current
-      if (!a) return
-      const list = stickersRef.current
-      const emit = onChangeRef.current
-
-      if (a.mode === 'drag') {
-        const rect = getRect()
-        if (!rect) return
-        const newX = Math.max(0, Math.min(93, a.origX + ((cx - a.startX) / rect.width)  * 100))
-        const newY = Math.max(0, Math.min(93, a.origY + ((cy - a.startY) / rect.height) * 100))
-        emit(list.map(s => s.id === a.id ? { ...s, x: newX, y: newY } : s))
-      }
-
-      if (a.mode === 'resize') {
-        const delta = (cx - a.startX) + (cy - a.startY)
-        const newSize = Math.max(20, Math.min(200, a.origSize + delta * 0.5))
-        emit(list.map(s => s.id === a.id ? { ...s, size: newSize } : s))
-      }
+  // ── Unified pointer move ─────────────────────────────────────────────────────
+  function applyMove(cx, cy) {
+    const g = gestureRef.current
+    if (!g) return
+    if (g.mode === 'drag') {
+      const newX = Math.max(2, Math.min(88, g.origX + ((cx - g.startX) / g.rectW) * 100))
+      const newY = Math.max(2, Math.min(88, g.origY + ((cy - g.startY) / g.rectH) * 100))
+      setLive({ id: g.id, x: newX, y: newY, size: null })
     }
+    if (g.mode === 'resize') {
+      // Use largest of dx/dy so both horizontal and vertical drags work
+      const dx = cx - g.startX
+      const dy = cy - g.startY
+      const delta = Math.abs(dx) > Math.abs(dy) ? dx : dy
+      const newSize = Math.max(20, Math.min(200, g.origSize + delta))
+      setLive({ id: g.id, x: null, y: null, size: newSize })
+    }
+  }
 
+  function commitGesture() {
+    const g = gestureRef.current
+    if (!g || !live) { gestureRef.current = null; setLive(null); return }
+    // Build updated list and fire onChange ONCE (triggers Supabase save)
+    const updated = stickers.map(s => {
+      if (s.id !== g.id) return s
+      if (g.mode === 'drag')   return { ...s, x: live.x,    y: live.y }
+      if (g.mode === 'resize') return { ...s, size: live.size }
+      return s
+    })
+    gestureRef.current = null
+    setLive(null)
+    onChange(updated)
+  }
+
+  // ── Global listeners — registered once ───────────────────────────────────────
+  React.useEffect(() => {
     function onMouseMove(e) { applyMove(e.clientX, e.clientY) }
-    function onMouseUp()    { activeRef.current = null }
-
+    function onMouseUp()    { commitGesture() }
     function onTouchMove(e) {
-      const a = activeRef.current
-      if (!a) return
-      if (a.mode === 'pinch' && e.touches.length === 2) {
+      const g = gestureRef.current
+      if (!g) return
+      if (g.mode === 'pinch' && e.touches.length === 2) {
         e.preventDefault()
         const dx = e.touches[0].clientX - e.touches[1].clientX
         const dy = e.touches[0].clientY - e.touches[1].clientY
         const dist = Math.sqrt(dx*dx + dy*dy)
-        const newSize = Math.max(20, Math.min(200, a.origSize * (dist / a.origDist)))
-        onChangeRef.current(stickersRef.current.map(s => s.id === a.id ? { ...s, size: newSize } : s))
+        const newSize = Math.max(20, Math.min(200, g.origSize * (dist / g.origDist)))
+        setLive({ id: g.id, x: null, y: null, size: newSize })
         return
       }
       if (e.touches.length === 1) applyMove(e.touches[0].clientX, e.touches[0].clientY)
     }
-    function onTouchEnd() { activeRef.current = null }
-
-    window.addEventListener('mousemove', onMouseMove, { passive: true })
+    function onTouchEnd() { commitGesture() }
+    window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup',   onMouseUp)
     window.addEventListener('touchmove', onTouchMove, { passive: false })
     window.addEventListener('touchend',  onTouchEnd)
@@ -272,159 +283,156 @@ function CanvasStickerLayer({ stickers, onChange, onDelete, C }) {
       window.removeEventListener('touchmove', onTouchMove)
       window.removeEventListener('touchend',  onTouchEnd)
     }
-  }, []) // ← empty: listeners registered once, refs keep them fresh
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stickers, live])  // re-bind when stickers/live change so commitGesture closes over latest values
 
+  // ── Start helpers ─────────────────────────────────────────────────────────────
   function startDrag(e, id) {
-    e.stopPropagation()
-    e.preventDefault()
+    e.stopPropagation(); e.preventDefault()
     setSelected(id)
-    const s = stickersRef.current.find(s => s.id === id)
-    activeRef.current = { mode:'drag', id, startX: e.clientX, startY: e.clientY, origX: s.x, origY: s.y }
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const s = stickers.find(s => s.id === id)
+    const cx = e.touches ? e.touches[0].clientX : e.clientX
+    const cy = e.touches ? e.touches[0].clientY : e.clientY
+    gestureRef.current = { mode:'drag', id, startX:cx, startY:cy, origX:s.x, origY:s.y, rectW:rect.width, rectH:rect.height }
   }
 
   function startResize(e, id) {
-    e.stopPropagation()
-    e.preventDefault()
-    const s = stickersRef.current.find(s => s.id === id)
-    activeRef.current = { mode:'resize', id, startX: e.clientX, startY: e.clientY, origSize: s.size }
+    e.stopPropagation(); e.preventDefault()
+    const s = stickers.find(s => s.id === id)
+    const cx = e.touches ? e.touches[0].clientX : e.clientX
+    const cy = e.touches ? e.touches[0].clientY : e.clientY
+    gestureRef.current = { mode:'resize', id, startX:cx, startY:cy, origSize:s.size }
   }
 
-  function startTouchDrag(e, id) {
+  function startPinch(e, id) {
     e.stopPropagation()
-    setSelected(id)
-    if (e.touches.length === 2) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX
-      const dy = e.touches[0].clientY - e.touches[1].clientY
-      const s = stickersRef.current.find(s => s.id === id)
-      activeRef.current = { mode:'pinch', id, origDist: Math.sqrt(dx*dx+dy*dy), origSize: s.size }
-    } else {
-      const t = e.touches[0]
-      const s = stickersRef.current.find(s => s.id === id)
-      activeRef.current = { mode:'drag', id, startX: t.clientX, startY: t.clientY, origX: s.x, origY: s.y }
-    }
+    if (e.touches.length < 2) return
+    const s = stickers.find(s => s.id === id)
+    const dx = e.touches[0].clientX - e.touches[1].clientX
+    const dy = e.touches[0].clientY - e.touches[1].clientY
+    gestureRef.current = { mode:'pinch', id, origDist: Math.sqrt(dx*dx+dy*dy), origSize: s.size }
   }
 
-  function startTouchResize(e, id) {
-    e.stopPropagation()
-    const t = e.touches[0]
-    const s = stickersRef.current.find(s => s.id === id)
-    activeRef.current = { mode:'resize', id, startX: t.clientX, startY: t.clientY, origSize: s.size }
-  }
-
-  function deleteSticker(id) {
-    if (onDelete) {
-      onDelete(id)
-    } else {
-      onChangeRef.current(stickersRef.current.filter(s => s.id !== id))
-    }
+  function handleDelete(e, id) {
+    e.stopPropagation(); e.preventDefault()
+    onDelete ? onDelete(id) : onChange(stickers.filter(s => s.id !== id))
     setSelected(null)
   }
 
-  function setSize(id, px) {
-    onChangeRef.current(stickersRef.current.map(s => s.id === id ? { ...s, size: px } : s))
+  function handleSetSize(e, id, px) {
+    e.stopPropagation()
+    onChange(stickers.map(s => s.id === id ? { ...s, size: px } : s))
   }
 
   const SIZES = [24, 40, 64, 96, 128]
 
   return (
     <div ref={containerRef}
-      style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:20 }}
-      onMouseDown={() => setSelected(null)}   // click on canvas → deselect
+      style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:20, overflow:'visible' }}
+      onMouseDown={e => { if (e.target === containerRef.current) setSelected(null) }}
     >
       {stickers.map(s => {
-        const isSel = selected === s.id
-        const sz    = Math.round(s.size)
+        const isSel  = selected === s.id
+        const isLive = live?.id === s.id
+        // While dragging/resizing, show local live values instead of saved props
+        const dispX    = (isLive && live.x    != null) ? live.x    : s.x
+        const dispY    = (isLive && live.y    != null) ? live.y    : s.y
+        const dispSize = (isLive && live.size != null) ? live.size : s.size
+        const sz       = Math.round(dispSize)
+
         return (
-          <div key={s.id} style={{
-            position:   'absolute',
-            left:       `${s.x}%`,
-            top:        `${s.y}%`,
-            width:      sz,
-            height:     sz,
-            pointerEvents: 'auto',
-            userSelect: 'none',
-            touchAction:'none',
-            zIndex:     isSel ? 30 : 21,
-            cursor:     isSel ? 'grabbing' : 'grab',
-            filter:     isSel
-              ? 'drop-shadow(0 4px 14px rgba(0,0,0,0.32))'
-              : 'drop-shadow(0 1px 4px rgba(0,0,0,0.14))',
-          }}
+          <div key={s.id}
+            style={{
+              position:   'absolute',
+              left:       `${dispX}%`,
+              top:        `${dispY}%`,
+              width:      sz,
+              height:     sz,
+              pointerEvents: 'auto',
+              userSelect: 'none',
+              touchAction:'none',
+              zIndex:     isSel ? 30 : 21,
+              // No CSS transition during gesture — instant response
+              transition: isLive ? 'none' : 'filter 0.12s',
+              filter:     isSel
+                ? 'drop-shadow(0 4px 16px rgba(0,0,0,0.35))'
+                : 'drop-shadow(0 1px 4px rgba(0,0,0,0.12))',
+              cursor: gestureRef.current?.id === s.id ? 'grabbing' : (isSel ? 'grab' : 'pointer'),
+              overflow: 'visible',
+            }}
             onMouseDown={e => startDrag(e, s.id)}
-            onTouchStart={e => startTouchDrag(e, s.id)}
+            onTouchStart={e => {
+              setSelected(s.id)
+              if (e.touches.length >= 2) startPinch(e, s.id)
+              else startDrag(e, s.id)
+            }}
           >
             {/* ── Sticker content ── */}
             {s.type === 'emoji'
-              ? <span style={{ fontSize: sz * 0.82, lineHeight:1, display:'block', textAlign:'center', pointerEvents:'none', userSelect:'none' }}>{s.value}</span>
-              : <img src={s.value} alt="" draggable={false}
-                  style={{ width:'100%', height:'100%', objectFit:'contain', display:'block', pointerEvents:'none' }}/>
+              ? <span style={{ fontSize: sz * 0.85, lineHeight:1, display:'block', textAlign:'center', pointerEvents:'none', userSelect:'none' }}>{s.value}</span>
+              : <img src={s.value} alt="" draggable={false} style={{ width:'100%', height:'100%', objectFit:'contain', display:'block', pointerEvents:'none' }}/>
             }
 
             {/* ── Selection ring ── */}
-            {isSel && (
-              <div style={{
-                position:'absolute', inset:-4,
-                border:`2px dashed ${C.peach}99`,
-                borderRadius:10, pointerEvents:'none',
-                animation:'none',
-              }}/>
-            )}
+            {isSel && <div style={{ position:'absolute', inset:-5, border:`2px dashed ${C.peach}bb`, borderRadius:12, pointerEvents:'none' }}/>}
 
-            {/* ── Controls ── */}
+            {/* ── Controls — only when selected ── */}
             {isSel && <>
 
-              {/* ✕ Delete — top-left */}
+              {/* ✕ Delete — top-left, large hit target */}
               <div
-                onMouseDown={e => { e.stopPropagation(); deleteSticker(s.id) }}
-                onTouchEnd={e  => { e.stopPropagation(); deleteSticker(s.id) }}
+                onMouseDown={e => handleDelete(e, s.id)}
+                onTouchEnd={e  => handleDelete(e, s.id)}
                 style={{
-                  position:'absolute', top:-13, left:-13,
-                  width:26, height:26, borderRadius:'50%',
+                  position:'absolute', top:-16, left:-16,
+                  width:32, height:32, borderRadius:'50%',
                   background:'#E04545', color:'#fff',
-                  fontSize:13, fontWeight:800, lineHeight:'26px', textAlign:'center',
-                  cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.3)',
-                  zIndex:33, userSelect:'none',
+                  fontSize:14, fontWeight:900, lineHeight:'32px', textAlign:'center',
+                  cursor:'pointer', boxShadow:'0 3px 10px rgba(0,0,0,0.35)',
+                  zIndex:34, userSelect:'none', touchAction:'none',
                 }}>✕</div>
 
-              {/* ↔ Resize handle — bottom-right */}
+              {/* ⤡ Resize — bottom-right, 44px hit target for easy grabbing */}
               <div
                 onMouseDown={e => startResize(e, s.id)}
-                onTouchStart={e => startTouchResize(e, s.id)}
+                onTouchStart={e => startResize(e, s.id)}
                 style={{
-                  position:'absolute', bottom:-13, right:-13,
-                  width:26, height:26, borderRadius:'50%',
+                  position:'absolute', bottom:-18, right:-18,
+                  width:36, height:36, borderRadius:'50%',
                   background:C.peach, cursor:'nwse-resize',
                   display:'flex', alignItems:'center', justifyContent:'center',
-                  boxShadow:'0 2px 8px rgba(0,0,0,0.25)',
-                  zIndex:33, touchAction:'none',
+                  boxShadow:'0 3px 10px rgba(0,0,0,0.3)',
+                  zIndex:34, touchAction:'none',
                 }}
               >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M2 10L10 2M7 10L10 7" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M2 12L12 2M8 12L12 8" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"/>
                 </svg>
               </div>
 
-              {/* Quick-size pill */}
+              {/* Quick-size pill — above the sticker */}
               <div
                 onMouseDown={e => e.stopPropagation()}
+                onTouchStart={e => e.stopPropagation()}
                 style={{
-                  position:'absolute', top:-46, left:'50%', transform:'translateX(-50%)',
-                  display:'flex', gap:2, background:C.surface,
-                  border:`1px solid ${C.border}`, borderRadius:20,
-                  padding:'4px 8px', boxShadow:'0 4px 16px rgba(0,0,0,0.18)',
-                  zIndex:33, whiteSpace:'nowrap',
+                  position:'absolute', bottom: sz + 12, left:'50%', transform:'translateX(-50%)',
+                  display:'flex', gap:3, background:C.surface,
+                  border:`1.5px solid ${C.border}`, borderRadius:24,
+                  padding:'5px 10px', boxShadow:'0 4px 20px rgba(0,0,0,0.2)',
+                  zIndex:34, whiteSpace:'nowrap',
                 }}>
                 {SIZES.map(px => (
                   <button key={px}
-                    onMouseDown={e => { e.stopPropagation(); setSize(s.id, px) }}
-                    onTouchEnd={e  => { e.stopPropagation(); setSize(s.id, px) }}
+                    onMouseDown={e => handleSetSize(e, s.id, px)}
+                    onTouchEnd={e  => handleSetSize(e, s.id, px)}
                     style={{
-                      background: Math.abs(sz-px)<4 ? C.peach : 'transparent',
-                      color:      Math.abs(sz-px)<4 ? '#fff'  : C.textDim,
-                      border:'none', borderRadius:12,
-                      padding:'3px 7px', fontSize:10,
-                      fontWeight:700, cursor:'pointer',
-                      fontFamily:'inherit', minWidth:28,
+                      background: Math.abs(sz-px) < 6 ? C.peach : C.bg,
+                      color:      Math.abs(sz-px) < 6 ? '#fff'  : C.textMid,
+                      border: `1px solid ${Math.abs(sz-px) < 6 ? C.peach : C.border}`,
+                      borderRadius:14, padding:'4px 8px', fontSize:10,
+                      fontWeight:700, cursor:'pointer', fontFamily:'inherit', minWidth:30,
                     }}
                   >{px}</button>
                 ))}
@@ -505,10 +513,14 @@ export default function CalendarPage() {
   }
 
   async function updateDateStickers(list) {
+    // Find which stickers changed vs current state and only save those
+    const changed = list.filter(s => {
+      const prev = calStickers.find(p => p.id === s.id)
+      return !prev || prev.x !== s.x || prev.y !== s.y || prev.size !== s.size
+    })
     setCalStickers(list)
-    // Persist any changed stickers
     if (!partnershipId) return
-    for (const s of list) {
+    for (const s of changed) {
       await upsertSticker(s, user.id, partnershipId)
     }
   }
