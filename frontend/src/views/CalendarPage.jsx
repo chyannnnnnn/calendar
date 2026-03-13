@@ -48,14 +48,17 @@ function getMonthDates(base) {
 const HOUR_ROWS = Array.from({length:16},(_,i)=>i+7)
 
 
-// ─── Custom sticker system ────────────────────────────────────────────────────
-// Stickers are stored in localStorage keyed by event id
-// Each sticker is a { type: 'emoji'|'image', value: string } — but we expose
-// a placeholder UI so the user can upload their own image or pick nothing.
-// Default: a soft placeholder shown on each event chip.
+// ─── Free-floating sticker system ────────────────────────────────────────────
+// canvasStickers: [ { id, type:'emoji'|'image', value, x, y, size } ]
+// x/y are percentages of the main content area. size is px.
+// Stickers are draggable, resizable, and deletable.
+// Persisted in localStorage as 'uscal_canvas_stickers'.
 
-function getStickerForEvent(id, stickers) {
-  return stickers?.[id] || null
+function loadCanvasStickers() {
+  try { return JSON.parse(localStorage.getItem('uscal_canvas_stickers') || '[]') } catch { return [] }
+}
+function saveCanvasStickers(list) {
+  try { localStorage.setItem('uscal_canvas_stickers', JSON.stringify(list)) } catch {}
 }
 
 // ─── Floating background doodles ─────────────────────────────────────────────
@@ -107,64 +110,295 @@ function FloatingDoodles() {
   )
 }
 
-// ─── Sticker Picker Modal ─────────────────────────────────────────────────────
-function StickerPicker({ onSelect, onClose, C }) {
-  const PRESET_STICKERS = ['🌸','💕','🌿','✨','🍀','🌻','🎀','🫧','🍓','🧸','🌈','🎠','🦋','🍵','🌙','⭐','🫶','🎪','🌺','🍡']
-  return (
-    <div onClick={onClose} style={{position:'fixed',inset:0,background:'#3D2B1F55',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:400,padding:20}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:20,padding:22,maxWidth:320,width:'100%',boxShadow:`0 20px 60px ${C.shadow}`}}>
-        <div style={{fontFamily:"'Playfair Display'",fontSize:18,color:C.text,marginBottom:4}}>Add a sticker 🎀</div>
-        <div style={{fontSize:11,color:C.textMid,marginBottom:16}}>Pick an emoji, or upload your own image</div>
+// ─── Sticker Tray ─────────────────────────────────────────────────────────────
+const PRESET_STICKERS = ['🌸','💕','🌿','✨','🍀','🌻','🎀','🫧','🍓','🧸','🌈','🎠','🦋','🍵','🌙','⭐','🫶','🎪','🌺','🍡','🐝','🌷','🦄','🍒','🎵','🌊','🍑','🐱','🎨','🍰']
 
-        {/* Preset emoji grid */}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:6,marginBottom:16}}>
+function StickerTray({ onAdd, onClose, C, isMobile }) {
+  const [tab, setTab] = React.useState('emoji') // 'emoji' | 'upload'
+  const [uploads, setUploads] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem('uscal_custom_stickers') || '[]') } catch { return [] }
+  })
+
+  function handleUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => {
+      const val = ev.target.result
+      const updated = [...uploads, val].slice(-20) // keep last 20
+      setUploads(updated)
+      try { localStorage.setItem('uscal_custom_stickers', JSON.stringify(updated)) } catch {}
+      onAdd({ type:'image', value:val })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  return (
+    <div style={{
+      background:C.surface, border:`1px solid ${C.border}`,
+      borderRadius:20, padding:'16px 18px',
+      width: isMobile ? 'calc(100vw - 24px)' : 320,
+      maxHeight: isMobile ? '60vh' : '70vh',
+      overflowY:'auto',
+      boxShadow:`0 16px 48px rgba(0,0,0,0.25)`,
+    }}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <div style={{fontFamily:"'Playfair Display'",fontSize:17,color:C.text,fontWeight:600}}>🎀 Sticker Tray</div>
+        <div style={{display:'flex',gap:4}}>
+          <div style={{display:'flex',background:C.bg,border:`1px solid ${C.border}`,borderRadius:20,padding:2}}>
+            {[['emoji','😊'],['upload','🖼️']].map(([t,icon])=>(
+              <button key={t} onClick={()=>setTab(t)} style={{
+                background:tab===t?C.peach:'transparent', color:tab===t?'#fff':C.textDim,
+                border:'none',borderRadius:18,padding:'4px 12px',fontSize:11,
+                cursor:'pointer',fontWeight:tab===t?700:400,transition:'all 0.15s',
+              }}>{icon} {t}</button>
+            ))}
+          </div>
+          <button onClick={onClose} style={{background:'none',border:`1px solid ${C.border}`,borderRadius:8,width:28,height:28,cursor:'pointer',color:C.textDim,fontSize:14,display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+        </div>
+      </div>
+      <div style={{fontSize:10,color:C.textDim,marginBottom:10}}>
+        {tab==='emoji' ? 'Click to place on canvas. Then drag & resize.' : 'Upload your own sticker images.'}
+      </div>
+
+      {tab==='emoji' && (
+        <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',gap:5}}>
           {PRESET_STICKERS.map(s=>(
-            <button key={s} onClick={()=>onSelect({type:'emoji',value:s})} style={{
+            <button key={s} onClick={()=>onAdd({type:'emoji',value:s})} style={{
               background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,
-              padding:'8px 0',fontSize:20,cursor:'pointer',transition:'all 0.15s',
-            }}>{s}</button>
+              padding:'7px 0',fontSize:20,cursor:'pointer',
+              transition:'transform 0.1s',
+            }}
+            onMouseEnter={e=>e.currentTarget.style.transform='scale(1.15)'}
+            onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}
+            >{s}</button>
           ))}
         </div>
+      )}
 
-        {/* Image upload */}
-        <label style={{
-          display:'flex',alignItems:'center',justifyContent:'center',gap:8,
-          background:C.bg,border:`2px dashed ${C.border}`,borderRadius:12,
-          padding:'12px',cursor:'pointer',fontSize:12,color:C.textMid,fontWeight:600,
-        }}>
-          <span style={{fontSize:18}}>🖼️</span> Upload your own sticker
-          <input type="file" accept="image/*" style={{display:'none'}} onChange={e=>{
-            const file = e.target.files?.[0]
-            if (!file) return
-            const reader = new FileReader()
-            reader.onload = ev => onSelect({type:'image', value:ev.target.result})
-            reader.readAsDataURL(file)
-          }}/>
-        </label>
-
-        {/* Remove sticker */}
-        <button onClick={()=>onSelect(null)} style={{
-          width:'100%',marginTop:10,background:'none',border:`1px solid ${C.border}`,
-          borderRadius:10,padding:8,fontSize:12,color:C.textDim,cursor:'pointer',
-        }}>Remove sticker</button>
-      </div>
+      {tab==='upload' && (
+        <div>
+          <label style={{
+            display:'flex',alignItems:'center',justifyContent:'center',gap:8,
+            background:C.bg,border:`2px dashed ${C.border}`,borderRadius:12,
+            padding:'16px',cursor:'pointer',fontSize:12,color:C.textMid,fontWeight:600,marginBottom:10,
+          }}>
+            <span style={{fontSize:20}}>＋</span> Upload image sticker
+            <input type="file" accept="image/*" style={{display:'none'}} onChange={handleUpload}/>
+          </label>
+          {uploads.length > 0 && (
+            <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:5}}>
+              {uploads.map((src,i)=>(
+                <button key={i} onClick={()=>onAdd({type:'image',value:src})} style={{
+                  background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,
+                  padding:3,cursor:'pointer',aspectRatio:'1',overflow:'hidden',
+                }}>
+                  <img src={src} alt="" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:5}}/>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
-// ─── Sticker display component ────────────────────────────────────────────────
-function EventSticker({ sticker, size=16, C }) {
-  if (!sticker) return (
-    <div style={{
-      width:size, height:size, borderRadius:4, flexShrink:0,
-      border:`1.5px dashed ${C.border}`,
-      background:'transparent', opacity:0.5,
-    }}/>
+// ─── Canvas Sticker Layer ──────────────────────────────────────────────────────
+function CanvasStickerLayer({ stickers, onChange, C }) {
+  const [selected, setSelected] = React.useState(null)
+  const dragRef   = React.useRef(null) // { id, startX, startY, origX, origY }
+  const resizeRef = React.useRef(null) // { id, startX, startY, origSize }
+  const pinchRef  = React.useRef(null) // { id, origDist, origSize } for touch pinch
+  const containerRef = React.useRef(null)
+
+  // ── pointer helpers ──────────────────────────────────────────────────────────
+  function startDrag(e, id) {
+    e.stopPropagation()
+    setSelected(id)
+    const sticker = stickers.find(s => s.id === id)
+    dragRef.current = { id, startX: e.clientX, startY: e.clientY, origX: sticker.x, origY: sticker.y }
+  }
+
+  function startResize(e, id) {
+    e.stopPropagation()
+    const sticker = stickers.find(s => s.id === id)
+    resizeRef.current = { id, startX: e.clientX, startY: e.clientY, origSize: sticker.size }
+  }
+
+  React.useEffect(() => {
+    function onMove(cx, cy) {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      if (dragRef.current) {
+        const { id, startX, startY, origX, origY } = dragRef.current
+        const newX = Math.max(0, Math.min(94, origX + ((cx - startX) / rect.width)  * 100))
+        const newY = Math.max(0, Math.min(94, origY + ((cy - startY) / rect.height) * 100))
+        onChange(stickers.map(s => s.id === id ? { ...s, x: newX, y: newY } : s))
+      }
+      if (resizeRef.current) {
+        const { id, startX, startY, origSize } = resizeRef.current
+        // Use diagonal distance for natural feel
+        const delta = (cx - startX) + (cy - startY)
+        const newSize = Math.max(20, Math.min(160, origSize + delta * 0.4))
+        onChange(stickers.map(s => s.id === id ? { ...s, size: newSize } : s))
+      }
+    }
+
+    function onMouseMove(e) { onMove(e.clientX, e.clientY) }
+    function onMouseUp()    { dragRef.current = null; resizeRef.current = null }
+
+    function onTouchMove(e) {
+      // Pinch-to-resize with two fingers
+      if (e.touches.length === 2 && pinchRef.current) {
+        e.preventDefault()
+        const dx = e.touches[0].clientX - e.touches[1].clientX
+        const dy = e.touches[0].clientY - e.touches[1].clientY
+        const dist = Math.sqrt(dx*dx + dy*dy)
+        const { id, origDist, origSize } = pinchRef.current
+        const newSize = Math.max(20, Math.min(160, origSize * (dist / origDist)))
+        onChange(stickers.map(s => s.id === id ? { ...s, size: newSize } : s))
+        return
+      }
+      if (e.touches.length === 1) {
+        const t = e.touches[0]
+        onMove(t.clientX, t.clientY)
+      }
+    }
+    function onTouchEnd() { dragRef.current = null; resizeRef.current = null; pinchRef.current = null }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup',   onMouseUp)
+    window.addEventListener('touchmove', onTouchMove, { passive: false })
+    window.addEventListener('touchend',  onTouchEnd)
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup',   onMouseUp)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('touchend',  onTouchEnd)
+    }
+  }, [stickers, onChange])
+
+  function deleteSticker(id) { onChange(stickers.filter(s => s.id !== id)); setSelected(null) }
+
+  const SIZES = [24, 40, 64, 96, 128]
+
+  return (
+    <div ref={containerRef}
+      style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:20 }}
+      onClick={() => setSelected(null)}
+    >
+      {stickers.map(s => {
+        const isSel = selected === s.id
+        const sz    = Math.round(s.size)
+        return (
+          <div key={s.id} style={{
+            position: 'absolute',
+            left: `${s.x}%`,
+            top:  `${s.y}%`,
+            width:  sz,
+            height: sz,
+            pointerEvents: 'auto',
+            userSelect: 'none',
+            zIndex: isSel ? 30 : 21,
+            transition: 'filter 0.12s',
+            filter: isSel
+              ? 'drop-shadow(0 4px 12px rgba(0,0,0,0.3))'
+              : 'drop-shadow(0 1px 3px rgba(0,0,0,0.12))',
+          }}
+            onMouseDown={e => startDrag(e, s.id)}
+            onTouchStart={e => {
+              e.stopPropagation()
+              setSelected(s.id)
+              if (e.touches.length === 2) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX
+                const dy = e.touches[0].clientY - e.touches[1].clientY
+                pinchRef.current = { id: s.id, origDist: Math.sqrt(dx*dx+dy*dy), origSize: s.size }
+              } else {
+                const t = e.touches[0]
+                dragRef.current = { id: s.id, startX: t.clientX, startY: t.clientY, origX: s.x, origY: s.y }
+              }
+            }}
+          >
+            {/* ── Sticker image / emoji ── */}
+            <div style={{ width:'100%', height:'100%', cursor: isSel ? 'grabbing' : 'grab', lineHeight:1 }}>
+              {s.type === 'emoji'
+                ? <span style={{ fontSize: sz * 0.82, lineHeight:1, display:'block', textAlign:'center', pointerEvents:'none' }}>{s.value}</span>
+                : <img src={s.value} alt="" draggable={false}
+                    style={{ width:'100%', height:'100%', objectFit:'contain', display:'block', pointerEvents:'none' }}/>
+              }
+            </div>
+
+            {/* ── Selection ring ── */}
+            {isSel && (
+              <div style={{
+                position:'absolute', inset:-3,
+                border:`2px dashed ${C.peach}`,
+                borderRadius:8, pointerEvents:'none',
+              }}/>
+            )}
+
+            {/* ── Controls (shown when selected) ── */}
+            {isSel && <>
+              {/* Delete */}
+              <div onClick={e=>{e.stopPropagation();deleteSticker(s.id)}} style={{
+                position:'absolute', top:-11, right:-11,
+                width:22, height:22, borderRadius:'50%',
+                background:'#E04545', color:'#fff',
+                fontSize:12, fontWeight:800,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.35)', zIndex:32,
+              }}>✕</div>
+
+              {/* Resize handle — bottom-right */}
+              <div
+                onMouseDown={e=>{ e.stopPropagation(); startResize(e, s.id) }}
+                onTouchStart={e=>{
+                  e.stopPropagation()
+                  const t = e.touches[0]
+                  resizeRef.current = { id:s.id, startX:t.clientX, startY:t.clientY, origSize:s.size }
+                }}
+                style={{
+                  position:'absolute', bottom:-10, right:-10,
+                  width:22, height:22, borderRadius:'50%',
+                  background:C.peach, cursor:'nwse-resize',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  boxShadow:'0 2px 8px rgba(0,0,0,0.25)', zIndex:32,
+                  touchAction:'none',
+                }}
+              >
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                  <path d="M2 9L9 2M6 9L9 6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/>
+                </svg>
+              </div>
+
+              {/* Quick-size buttons */}
+              <div style={{
+                position:'absolute', bottom:-38, left:'50%', transform:'translateX(-50%)',
+                display:'flex', gap:3, background:C.surface,
+                border:`1px solid ${C.border}`, borderRadius:20,
+                padding:'3px 6px', boxShadow:'0 4px 12px rgba(0,0,0,0.15)',
+                zIndex:32, whiteSpace:'nowrap',
+              }}>
+                {SIZES.map(px=>(
+                  <button key={px}
+                    onClick={e=>{e.stopPropagation(); onChange(stickers.map(ss=>ss.id===s.id?{...ss,size:px}:ss))}}
+                    style={{
+                      background: sz===px ? C.peach : 'transparent',
+                      color: sz===px ? '#fff' : C.textDim,
+                      border:'none', borderRadius:12, padding:'2px 6px',
+                      fontSize:9, fontWeight:700, cursor:'pointer',
+                      transition:'all 0.1s',
+                    }}
+                  >{px}</button>
+                ))}
+              </div>
+            </>}
+          </div>
+        )
+      })}
+    </div>
   )
-  if (sticker.type === 'image') return (
-    <img src={sticker.value} alt="sticker" style={{width:size,height:size,objectFit:'cover',borderRadius:4,flexShrink:0}}/>
-  )
-  return <span style={{fontSize:size-2,lineHeight:1,flexShrink:0}}>{sticker.value}</span>
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -186,8 +420,30 @@ export default function CalendarPage() {
   const [saving,   setSaving]   = useState(false)
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [editForm, setEditForm] = useState(null)
-  const [stickers, setStickers] = useState({})          // { [eventId]: {type,value} }
-  const [stickerTarget, setStickerTarget] = useState(null) // eventId being stickered
+  const [canvasStickers, setCanvasStickers] = useState(()=>loadCanvasStickers())
+  const [showStickerTray, setShowStickerTray] = useState(false)
+
+  function updateCanvasStickers(list) {
+    setCanvasStickers(list)
+    saveCanvasStickers(list)
+  }
+
+  function addCanvasSticker(stickerDef) {
+    // Place new sticker near centre with slight randomness
+    const id = Date.now() + Math.random()
+    const newS = {
+      id,
+      type:  stickerDef.type,
+      value: stickerDef.value,
+      x: 35 + Math.random() * 30,  // 35–65% x
+      y: 20 + Math.random() * 40,  // 20–60% y
+      size: 48,
+    }
+    const updated = [...canvasStickers, newS]
+    setCanvasStickers(updated)
+    saveCanvasStickers(updated)
+    setShowStickerTray(false)
+  }
   const [confirmDelete, setConfirmDelete] = useState(null) // eventId pending quick-delete confirm
   const [menuOpen, setMenuOpen] = useState(false) // mobile hamburger menu
   const [showAddModal, setShowAddModal] = useState(false)
@@ -281,17 +537,7 @@ export default function CalendarPage() {
     setEditForm(null)
   }
 
-  function handleStickerSelect(sticker) {
-    if (stickerTarget) {
-      setStickers(prev => {
-        const next = { ...prev }
-        if (sticker === null) delete next[stickerTarget]
-        else next[stickerTarget] = sticker
-        return next
-      })
-    }
-    setStickerTarget(null)
-  }
+  // sticker system moved to canvas layer
 
   function canDelete(ev) {
     // Owner can always delete their own events
@@ -553,6 +799,15 @@ export default function CalendarPage() {
               )
             })}
           </div>
+          <button onClick={()=>setShowStickerTray(t=>!t)} style={{
+            background: showStickerTray ? C.lavender : 'none',
+            border:`1px solid ${showStickerTray ? C.lavender : C.border}`,
+            color: showStickerTray ? '#fff' : C.textMid,
+            borderRadius:20, padding: isMobile ? '5px 10px' : '5px 14px',
+            fontSize:isMobile?14:12, cursor:'pointer', flexShrink:0,
+            transition:'all 0.15s', fontWeight:600,
+          }}>🎀{!isMobile && ' Stickers'}</button>
+
           <button onClick={()=>{setAddForm({title:'',date:toDateStr(new Date()),startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:'',eventType:'mine',location:null,notes:''});setShowAddModal(true)}} style={{
             background:C.peach, color:'#fff', border:'none', borderRadius:20,
             padding: isMobile ? '5px 12px' : '5px 16px',
@@ -567,7 +822,18 @@ export default function CalendarPage() {
       </nav>
 
       {/* ── Main content ── */}
-      <main onClick={()=>setConfirmDelete(null)} style={{flex:1,padding: isMobile ? '10px 10px' : '14px 24px',overflowY: tab==='compare'?'hidden':'auto',display:'flex',flexDirection:'column',position:'relative',zIndex:1,scrollBehavior:'smooth',WebkitOverflowScrolling:'touch'}}>
+      <div style={{flex:1,position:'relative',overflow:'clip'}}>
+      {/* Canvas sticker layer — floats above scroll content */}
+      {tab==='calendar' && (
+        <CanvasStickerLayer stickers={canvasStickers} onChange={updateCanvasStickers} C={C}/>
+      )}
+      {/* Sticker tray popover — fixed so it doesn't get clipped */}
+      {showStickerTray && (
+        <div style={{position:'fixed',top:104,right:12,zIndex:200}}>
+          <StickerTray onAdd={addCanvasSticker} onClose={()=>setShowStickerTray(false)} C={C} isMobile={isMobile}/>
+        </div>
+      )}
+      <main onClick={()=>{setConfirmDelete(null);if(showStickerTray)setShowStickerTray(false)}} style={{height:'100%',padding: isMobile ? '10px 10px' : '14px 24px',overflowY: tab==='compare'?'hidden':'auto',display:'flex',flexDirection:'column',position:'relative',zIndex:1,scrollBehavior:'smooth',WebkitOverflowScrolling:'touch'}}>
 
         {/* ════ CALENDAR TAB ════ */}
         {tab==='calendar' && (
@@ -731,9 +997,7 @@ export default function CalendarPage() {
                       }}>
                         {/* Title row */}
                         <div style={{display:'flex',alignItems:'center',gap:5,minWidth:0}}>
-                          <span onClick={e=>{e.stopPropagation();setStickerTarget(ev.id)}} style={{flexShrink:0}}>
-                            <EventSticker sticker={stickers[ev.id]} size={12} C={C}/>
-                          </span>
+
                           <span style={{
                             fontWeight:700, fontSize: h>44 ? 12 : 11,
                             color, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1,
@@ -1118,14 +1382,7 @@ export default function CalendarPage() {
           )
         })()}
 
-        {/* ── Sticker picker ── */}
-        {stickerTarget && (
-          <div onClick={()=>setStickerTarget(null)} style={{position:'fixed',inset:0,zIndex:400,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-            <div onClick={e=>e.stopPropagation()} style={{background:C.surface,borderRadius:20,padding:20,width:'min(340px,100%)',boxShadow:'0 16px 60px rgba(0,0,0,0.4)'}}>
-              <StickerPicker onSelect={handleStickerSelect} onClose={()=>setStickerTarget(null)} C={C}/>
-            </div>
-          </div>
-        )}
+
 
       {/* ── Toast notification ── */}
       {toast && (
@@ -1146,6 +1403,7 @@ export default function CalendarPage() {
       <style>{`@keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`}</style>
 
       </main>
+      </div>{/* end main wrapper */}
     </div>
   )
 }
