@@ -83,6 +83,7 @@ create table if not exists events (
   notes        text                 default '',
   is_recurring boolean              default false,
   recur_rule   text,
+  series_id    uuid,                              -- groups recurring events so they can be deleted together
   location_lat double precision,
   location_lng double precision,
   updated_at   timestamptz          default now(),
@@ -127,6 +128,8 @@ alter table events  add column if not exists event_type   text        not null d
 alter table events  add column if not exists location     text        not null default '';
 alter table events  add column if not exists notes        text        not null default '';
 alter table events  add column if not exists location_lat double precision;
+alter table events  add column if not exists series_id    uuid;
+create index if not exists events_series_id on events(series_id) where series_id is not null;
 alter table events  add column if not exists location_lng double precision;
 
 

@@ -6,13 +6,15 @@ import Dexie from 'dexie'
 export const db = new Dexie('uscal')
 
 db.version(1).stores({
-  // Local copy of all events (yours + partner's)
   events: 'id, owner_id, date, updated_at, _syncStatus',
-
-  // Queued writes that haven't reached Supabase yet (created while offline)
   syncQueue: '++id, type, payload, createdAt',
+  profiles: 'id',
+})
 
-  // Cached user/partner profile info
+// v2 — adds series_id index for recurring event group deletes
+db.version(2).stores({
+  events: 'id, owner_id, date, updated_at, _syncStatus, series_id',
+  syncQueue: '++id, type, payload, createdAt',
   profiles: 'id',
 })
 

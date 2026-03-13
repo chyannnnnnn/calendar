@@ -8,7 +8,7 @@ function generateId() {
 }
 
 // ─── Add event ───────────────────────────────────────────────────────────────
-export async function addEvent({ title, date, startTime, endTime, isPrivate, ownerId, eventType, location, notes }) {
+export async function addEvent({ title, date, startTime, endTime, isPrivate, ownerId, eventType, location, notes, seriesId }) {
   const event = {
     id:           generateId(),
     owner_id:     ownerId,
@@ -20,6 +20,7 @@ export async function addEvent({ title, date, startTime, endTime, isPrivate, own
     event_type:   eventType ?? 'mine',
     location:     location || '',
     notes:        notes || '',
+    series_id:    seriesId || null,
     updated_at:   new Date().toISOString(),
     created_at:   new Date().toISOString(),
     _syncStatus:  'pending',
@@ -74,6 +75,20 @@ export async function deleteEvent(id) {
     await db.syncQueue.add({ type: 'delete', payload: { id }, createdAt: Date.now() })
     if (navigator.onLine) await flushQueue()
   }
+}
+
+// ─── Delete all events in a series ──────────────────────────────────────────────
+export async function deleteEventSeries(seriesId) {
+  const members = await db.events.where('series_id').equals(seriesId).toArray()
+  for (const ev of members) {
+    if (ev._syncStatus === 'pending') {
+      await db.events.delete(ev.id)
+    } else {
+      await db.events.update(ev.id, { _syncStatus: 'deleted' })
+      await db.syncQueue.add({ type: 'delete', payload: { id: ev.id }, createdAt: Date.now() })
+    }
+  }
+  if (navigator.onLine) await flushQueue()
 }
 
 // ─── Get events for date range ─────────────────────────────────────────────────

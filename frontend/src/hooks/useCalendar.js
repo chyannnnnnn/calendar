@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { db } from '../lib/db'
 import { pullEvents, subscribeToEvents, watchConnectivity, startReconciliationLoop } from '../lib/sync'
-import { addEvent, deleteEvent, updateEvent } from '../lib/events'
+import { addEvent, deleteEvent, updateEvent, deleteEventSeries } from '../lib/events'
 import { useAuth } from '../lib/AuthContext'
 
 export function useCalendar() {
@@ -82,6 +82,12 @@ export function useCalendar() {
     setSyncStatus(navigator.onLine ? 'synced' : 'offline')
   }
 
+  async function removeEventSeries(seriesId) {
+    setSyncStatus('syncing')
+    await deleteEventSeries(seriesId)
+    setSyncStatus(navigator.onLine ? 'synced' : 'offline')
+  }
+
   return {
     events: allEvents || [],
     eventsForDate,
@@ -89,6 +95,7 @@ export function useCalendar() {
     findFreeSlots,
     createEvent,
     removeEvent,
+    removeEventSeries,
     updateEvent,
     syncStatus,
   }

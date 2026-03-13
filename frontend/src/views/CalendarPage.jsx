@@ -450,7 +450,7 @@ function CanvasStickerLayer({ stickers, onChange, onDelete, C }) {
 export default function CalendarPage() {
   const { user, partner, partnershipId, signOut, isLinked, unlinkPartner } = useAuth()
   const navigate = useNavigate()
-  const { events, eventsForDate, findFreeSlots, createEvent, removeEvent, updateEvent, syncStatus } = useCalendar()
+  const { events, eventsForDate, findFreeSlots, createEvent, removeEvent, removeEventSeries, updateEvent, syncStatus } = useCalendar()
   const { C, mode, toggle: toggleTheme } = useTheme()
   const USER_COLORS = { you:{ color:C.mint }, partner:{ color:C.rose }, ours:{ color:C.lavender } }
 
@@ -530,6 +530,7 @@ export default function CalendarPage() {
     if (partnershipId) await deleteRemoteSticker(id)
   }
   const [confirmDelete, setConfirmDelete] = useState(null) // eventId pending quick-delete confirm
+  const [seriesDeleteModal, setSeriesDeleteModal] = useState(null) // event with series_id pending delete choice
   const [menuOpen, setMenuOpen] = useState(false) // mobile hamburger menu
   const [showAddModal, setShowAddModal] = useState(false)
   const [toast, setToast] = useState(null) // {msg, type: 'success'|'error'}
@@ -631,18 +632,39 @@ export default function CalendarPage() {
   }
 
   async function handleDelete(ev) {
+    // If event belongs to a series, ask whether to delete just this one or the whole series
+    if (ev.series_id) {
+      setSelectedEvent(null)
+      setConfirmDelete(null)
+      setSeriesDeleteModal(ev)
+      return
+    }
     setSelectedEvent(null)
     setConfirmDelete(null)
     await removeEvent(ev.id)
   }
 
+  async function handleDeleteOne(ev) {
+    setSeriesDeleteModal(null)
+    await removeEvent(ev.id)
+  }
+
+  async function handleDeleteSeries(ev) {
+    setSeriesDeleteModal(null)
+    await removeEventSeries(ev.series_id)
+  }
+
   function quickDelete(e, ev) {
     e.stopPropagation()
+    if (ev.series_id) {
+      // For series events skip the two-tap confirm and go straight to the series modal
+      setSeriesDeleteModal(ev)
+      return
+    }
     if (confirmDelete === ev.id) {
       handleDelete(ev)
     } else {
       setConfirmDelete(ev.id)
-      // Auto-cancel after 3s
       setTimeout(() => setConfirmDelete(c => c === ev.id ? null : c), 3000)
     }
   }
@@ -665,6 +687,8 @@ export default function CalendarPage() {
     setSaving(true)
     try {
       const dates = getRecurringDates(addForm.date, addForm.recurring, addForm.recurUntil)
+      // Give all events in this recurring series the same series_id so we can delete them together
+      const seriesId = dates.length > 1 ? crypto.randomUUID() : null
       for (const date of dates) {
         await createEvent({
           title:     addForm.eventType === 'ours' ? `💑 ${addForm.title}` : addForm.title,
@@ -675,6 +699,7 @@ export default function CalendarPage() {
           eventType: addForm.eventType,
           location:  serializeLocation(addForm.location),
           notes:     addForm.notes,
+          seriesId,
         })
       }
       const count = getRecurringDates(addForm.date, addForm.recurring, addForm.recurUntil).length
@@ -768,28 +793,6 @@ export default function CalendarPage() {
             <span style={{fontFamily:"'Playfair Display'",fontSize:isMobile?11:13,minWidth:isMobile?100:140,textAlign:'center',color:C.text,fontWeight:600}}>{navLabel}</span>
             <button onClick={()=>navCal(1)}  style={{background:'none',border:`1px solid ${C.border}`,color:C.textMid,borderRadius:8,width:28,height:28,cursor:'pointer',fontSize:16,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>›</button>
           </div>
-
-          {/* Desktop: profile pills */}
-          {!isMobile && (
-            <div style={{display:'flex',gap:5,alignItems:'center',flexShrink:0}}>
-              {[
-                {key:'you',     label:user?.name||'You',        emoji:'🌿', route:'/profile?view=mine'},
-                {key:'partner', label:partner?.name||'Partner', emoji:'🌷', route:'/profile?view=partner'},
-              ].map(u=>(
-                <button key={u.key} onClick={()=>navigate(u.route)} style={{
-                  display:'flex',alignItems:'center',gap:5,
-                  background:USER_COLORS[u.key].color+'12',
-                  border:`1px solid ${USER_COLORS[u.key].color}44`,
-                  borderRadius:20,padding:'4px 10px 4px 7px',
-                  fontSize:11,color:USER_COLORS[u.key].color,
-                  cursor:'pointer',fontFamily:'inherit',fontWeight:700,flexShrink:0,
-                }}>
-                  <span style={{width:18,height:18,borderRadius:'50%',background:USER_COLORS[u.key].color+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10}}>{u.emoji}</span>
-                  {u.label}
-                </button>
-              ))}
-            </div>
-          )}
 
           {/* Desktop: theme toggle + settings dropdown */}
           {!isMobile && (
@@ -1710,6 +1713,69 @@ export default function CalendarPage() {
               </div>
           )
         })()}
+
+      {/* ── Series delete modal ── */}
+      {seriesDeleteModal && (
+        <div style={{
+          position:'fixed', inset:0, zIndex:600,
+          background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)',
+          display:'flex', alignItems:'center', justifyContent:'center', padding:20,
+        }} onClick={()=>setSeriesDeleteModal(null)}>
+          <div onClick={e=>e.stopPropagation()} style={{
+            background:C.surface, borderRadius:24, padding:28,
+            width:'min(380px,100%)', boxShadow:'0 24px 64px rgba(0,0,0,0.35)',
+          }}>
+            {/* Icon + title */}
+            <div style={{textAlign:'center', marginBottom:20}}>
+              <div style={{fontSize:36, marginBottom:10}}>🗓️</div>
+              <div style={{fontFamily:"'Playfair Display'", fontSize:19, color:C.text, marginBottom:6}}>
+                Delete recurring event
+              </div>
+              <div style={{fontSize:13, color:C.textMid, lineHeight:1.5}}>
+                <strong style={{color:C.text}}>"{seriesDeleteModal.title?.replace(/^💑\s?/,'')}"</strong> is part of a series.
+                <br/>What would you like to delete?
+              </div>
+            </div>
+            {/* Options */}
+            <div style={{display:'flex', flexDirection:'column', gap:10}}>
+              <button onClick={()=>handleDeleteOne(seriesDeleteModal)} style={{
+                background:C.bg, border:`1.5px solid ${C.border}`,
+                borderRadius:14, padding:'14px 18px', cursor:'pointer',
+                textAlign:'left', fontFamily:'inherit', transition:'all 0.15s',
+              }}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=C.rose+'88';e.currentTarget.style.background=C.rose+'08'}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.background=C.bg}}
+              >
+                <div style={{fontSize:14, fontWeight:700, color:C.text, marginBottom:3}}>
+                  🗑 This event only
+                </div>
+                <div style={{fontSize:12, color:C.textDim}}>
+                  Delete only {seriesDeleteModal.date} — keep the rest of the series
+                </div>
+              </button>
+              <button onClick={()=>handleDeleteSeries(seriesDeleteModal)} style={{
+                background:C.rose+'08', border:`1.5px solid ${C.rose}44`,
+                borderRadius:14, padding:'14px 18px', cursor:'pointer',
+                textAlign:'left', fontFamily:'inherit', transition:'all 0.15s',
+              }}
+                onMouseEnter={e=>{e.currentTarget.style.background=C.rose+'18';e.currentTarget.style.borderColor=C.rose+'88'}}
+                onMouseLeave={e=>{e.currentTarget.style.background=C.rose+'08';e.currentTarget.style.borderColor=C.rose+'44'}}
+              >
+                <div style={{fontSize:14, fontWeight:700, color:C.rose, marginBottom:3}}>
+                  🗑 Entire series
+                </div>
+                <div style={{fontSize:12, color:C.textDim}}>
+                  Delete all events in this recurring series
+                </div>
+              </button>
+              <button onClick={()=>setSeriesDeleteModal(null)} style={{
+                background:'none', border:'none', borderRadius:14, padding:'10px',
+                cursor:'pointer', fontSize:13, color:C.textDim, fontFamily:'inherit', fontWeight:600,
+              }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Toast notification ── */}
       {toast && (
