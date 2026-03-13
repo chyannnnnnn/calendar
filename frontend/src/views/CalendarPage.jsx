@@ -191,6 +191,12 @@ export default function CalendarPage() {
   const [confirmDelete, setConfirmDelete] = useState(null) // eventId pending quick-delete confirm
   const [menuOpen, setMenuOpen] = useState(false) // mobile hamburger menu
   const [showAddModal, setShowAddModal] = useState(false)
+  const [toast, setToast] = useState(null) // {msg, type: 'success'|'error'}
+
+  function showToast(msg, type='success') {
+    setToast({msg, type})
+    setTimeout(() => setToast(null), 3500)
+  }
 
   // Responsive: detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640)
@@ -326,23 +332,31 @@ export default function CalendarPage() {
 
   async function commitAdd() {
     setSaving(true)
-    const dates = getRecurringDates(addForm.date, addForm.recurring, addForm.recurUntil)
-    for (const date of dates) {
-      await createEvent({
-        title:     addForm.eventType === 'ours' ? `💑 ${addForm.title}` : addForm.title,
-        date,
-        startTime: addForm.startTime,
-        endTime:   addForm.endTime,
-        isPrivate: addForm.isPrivate,
-        eventType: addForm.eventType,
-        location:  serializeLocation(addForm.location),
-        notes:     addForm.notes,
-      })
+    try {
+      const dates = getRecurringDates(addForm.date, addForm.recurring, addForm.recurUntil)
+      for (const date of dates) {
+        await createEvent({
+          title:     addForm.eventType === 'ours' ? `💑 ${addForm.title}` : addForm.title,
+          date,
+          startTime: addForm.startTime,
+          endTime:   addForm.endTime,
+          isPrivate: addForm.isPrivate,
+          eventType: addForm.eventType,
+          location:  serializeLocation(addForm.location),
+          notes:     addForm.notes,
+        })
+      }
+      const count = getRecurringDates(addForm.date, addForm.recurring, addForm.recurUntil).length
+      setAddForm({title:'',date:'',startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:'',eventType:'mine',location:null,notes:''})
+      setConflict(null)
+      setShowAddModal(false)
+      showToast(count > 1 ? `✿ ${count} events added!` : '✿ Event added successfully!', 'success')
+    } catch(err) {
+      console.error('[commitAdd]', err)
+      showToast('Something went wrong. Please try again.', 'error')
+    } finally {
+      setSaving(false)
     }
-    setAddForm({title:'',date:'',startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:'',eventType:'mine',location:null,notes:''})
-    setConflict(null)
-    setSaving(false)
-    setTab('calendar')
   }
 
   // ── Recurring date generator ──────────────────────────────
@@ -687,7 +701,7 @@ export default function CalendarPage() {
                     const dayEvs=eventsForDate(navDateStr)
                     const freeSlots=findFreeSlots(navDateStr)
                     const isFree=freeSlots.some(([s,e])=>s<=hour*60&&e>=(hour+1)*60)
-                    const hourEvs=dayEvs.filter(e=>timeToMins(e.start_time)<(hour+1)*60&&timeToMins(e.end_time)>hour*60&&timeToMins(e.start_time)>=hour*60)
+                    const hourEvs=dayEvs.filter(e=>Math.floor(timeToMins(e.start_time)/60)===hour)
                     return (
                       <div key={hour} style={{display:'flex',minHeight:isMobile?52:64,borderBottom:`1px solid ${C.border}`,background:isFree?C.gold+'08':'transparent'}}>
                         <div style={{width:isMobile?44:56,flexShrink:0,padding:'8px 8px 8px 4px',fontSize:isMobile?9:11,color:C.textDim,borderRight:`1px solid ${C.border}`,textAlign:'right',fontWeight:600}}>
@@ -708,7 +722,7 @@ export default function CalendarPage() {
                                 </span>
                                 {eventLabel(ev)?.replace(/^💑\s?/,'')}
                               </span>
-                              <span style={{fontSize:8,opacity:0.65}}>{ev.start_time}–{ev.end_time}</span>
+                              <span style={{fontSize:10,opacity:0.7,fontWeight:500}}>{ev.start_time} – {ev.end_time}</span>
                               {ev.location&&(()=>{
                                 const loc=parseLocation(ev.location)
                                 if(!loc?.name) return null
@@ -1036,6 +1050,24 @@ export default function CalendarPage() {
             </div>
           </div>
         )}
+
+      {/* ── Toast notification ── */}
+      {toast && (
+        <div style={{
+          position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)',
+          zIndex:500, pointerEvents:'none',
+          background: toast.type==='success' ? C.mint : C.rose,
+          color:'#fff', borderRadius:40,
+          padding:'12px 24px', fontSize:13, fontWeight:700,
+          boxShadow:`0 8px 32px ${toast.type==='success' ? C.mint : C.rose}66`,
+          display:'flex', alignItems:'center', gap:8,
+          animation:'slideUp 0.25s ease',
+          whiteSpace:'nowrap',
+        }}>
+          {toast.type==='success' ? '✓' : '✕'} {toast.msg}
+        </div>
+      )}
+      <style>{`@keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`}</style>
 
       </main>
     </div>
