@@ -200,6 +200,63 @@ function StickerTray({ onAdd, onClose, C, isMobile, date }) {
   )
 }
 
+// ─── Sticker Tray Portal ──────────────────────────────────────────────────────
+// Positions the tray relative to the tapped cell, flipping sides so it never
+// covers the cell. On mobile it anchors as a bottom sheet instead.
+function StickerTrayPortal({ rect, isMobile, C, date, onAdd, onClose }) {
+  const TRAY_W = 320
+  const TRAY_H = 340  // approximate, enough for smart-flip calculation
+  const PAD    = 10   // gap between cell edge and tray
+
+  let style = {}
+
+  if (isMobile || !rect) {
+    // Mobile: fixed bottom sheet — never overlaps cells
+    style = {
+      position: 'fixed',
+      bottom: 0, left: 0, right: 0,
+      zIndex: 500,
+      borderRadius: '20px 20px 0 0',
+      maxHeight: '65vh',
+    }
+  } else {
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+
+    // Horizontal: prefer right of cell, flip left if not enough room
+    const spaceRight = vw - rect.right - PAD
+    const spaceLeft  = rect.left - PAD
+    let left
+    if (spaceRight >= TRAY_W) {
+      left = rect.right + PAD
+    } else if (spaceLeft >= TRAY_W) {
+      left = rect.left - TRAY_W - PAD
+    } else {
+      // Not enough room either side — align to right edge of viewport
+      left = Math.max(PAD, vw - TRAY_W - PAD)
+    }
+
+    // Vertical: align top of tray to top of cell, flip up if clips bottom
+    let top = rect.top
+    if (top + TRAY_H > vh - PAD) top = Math.max(PAD, vh - TRAY_H - PAD)
+
+    style = { position: 'fixed', top, left, width: TRAY_W, zIndex: 500 }
+  }
+
+  return (
+    <div style={style}>
+      {isMobile && (
+        // Bottom sheet backdrop
+        <div onClick={onClose} style={{
+          position:'fixed', inset:0, zIndex:-1,
+          background:'rgba(0,0,0,0.25)',
+        }}/>
+      )}
+      <StickerTray onAdd={onAdd} onClose={onClose} C={C} isMobile={isMobile} date={date} />
+    </div>
+  )
+}
+
 // ─── Canvas Sticker Layer ──────────────────────────────────────────────────────
 // Design principles:
 //   • All drag/resize state is LOCAL (useState) — React renders smoothly each frame
@@ -469,9 +526,15 @@ export default function CalendarPage() {
   const [calStickers, setCalStickers] = useState([])   // [{ id, date, type, value, x, y, size }]
   const [stickerMode, setStickerMode] = useState(false)          // true = sticker edit mode active
   const [stickerTargetDate, setStickerTargetDate] = useState(null) // which date cell tray is open on
+  const [stickerTrayRect, setStickerTrayRect] = useState(null)    // bounding rect of the tapped cell
 
-  function enterStickerMode()  { setStickerMode(true); setStickerTargetDate(null) }
-  function exitStickerMode()   { setStickerMode(false); setStickerTargetDate(null) }
+  function enterStickerMode()  { setStickerMode(true); setStickerTargetDate(null); setStickerTrayRect(null) }
+  function exitStickerMode()   { setStickerMode(false); setStickerTargetDate(null); setStickerTrayRect(null) }
+
+  function selectStickerTarget(ds, cellEl) {
+    setStickerTargetDate(ds)
+    if (cellEl) setStickerTrayRect(cellEl.getBoundingClientRect())
+  }
 
   // Load stickers from Supabase when partnership is known
   React.useEffect(() => {
@@ -1096,14 +1159,14 @@ export default function CalendarPage() {
       <div style={{flex:1,position:'relative',overflow:'clip'}}>
       {/* Sticker tray popover — fixed so it doesn't get clipped */}
       {stickerMode && stickerTargetDate && (
-        <div style={{position:'fixed',top:104,right:12,zIndex:200}}>
-          <StickerTray
-            onAdd={def => addDateSticker(def, stickerTargetDate)}
-            onClose={()=>setStickerTargetDate(null)}
-            C={C} isMobile={isMobile}
-            date={stickerTargetDate}
-          />
-        </div>
+        <StickerTrayPortal
+          rect={stickerTrayRect}
+          isMobile={isMobile}
+          C={C}
+          date={stickerTargetDate}
+          onAdd={def => addDateSticker(def, stickerTargetDate)}
+          onClose={()=>{ setStickerTargetDate(null); setStickerTrayRect(null) }}
+        />
       )}
       {/* Sticker mode banner */}
       {stickerMode && (
@@ -1150,7 +1213,7 @@ export default function CalendarPage() {
                           if (!inMonth) return
                           if (stickerMode) {
                             e.stopPropagation()
-                            setStickerTargetDate(ds)
+                            selectStickerTarget(ds, e.currentTarget)
                             return
                           }
                           goToDay(date)
@@ -1236,7 +1299,7 @@ export default function CalendarPage() {
                   return (
                     <div key={i}
                       onClick={e=>{
-                        if (stickerMode) { e.stopPropagation(); setStickerTargetDate(ds); return }
+                        if (stickerMode) { e.stopPropagation(); selectStickerTarget(ds, e.currentTarget); return }
                         goToDay(date)
                       }}
                       style={{
