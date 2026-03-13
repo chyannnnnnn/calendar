@@ -1067,7 +1067,7 @@ export default function CalendarPage() {
               )
             })}
           </div>
-          {calView==='month' && tab==='calendar' && (
+          {(calView==='month' || calView==='week') && tab==='calendar' && (
             <button onClick={()=>stickerMode ? exitStickerMode() : enterStickerMode()} style={{
               background: stickerMode ? C.lavender : 'none',
               border:`1.5px solid ${stickerMode ? C.lavender : C.border}`,
@@ -1231,32 +1231,37 @@ export default function CalendarPage() {
                   const dayEvs=eventsForDate(ds)
                   const freeSlots=findFreeSlots(ds)
                   const hasOurs = dayEvs.some(e=>e.event_type==='ours'||e.title?.startsWith('💑'))
+                  const cellStickers = calStickers.filter(s => s.date === ds)
+                  const isStickerTarget = stickerMode && stickerTargetDate === ds
                   return (
                     <div key={i}
-                      onClick={()=>goToDay(date)}
+                      onClick={e=>{
+                        if (stickerMode) { e.stopPropagation(); setStickerTargetDate(ds); return }
+                        goToDay(date)
+                      }}
                       style={{
-                        background:isToday?C.peach+'11':C.surface,
-                        border:`1.5px solid ${isToday?C.peach+'88':hasOurs?C.lavender+'55':C.border}`,
+                        background: isToday ? C.peach+'11' : isStickerTarget ? C.lavender+'18' : C.surface,
+                        border:`1.5px solid ${isStickerTarget ? C.lavender : isToday ? C.peach+'88' : hasOurs ? C.lavender+'55' : C.border}`,
                         borderRadius:14, padding:'14px 12px', minHeight: isMobile ? 160 : 220,
-                        position:'relative', overflow:'hidden', cursor:'pointer',
-                        transition:'border-color 0.15s',
+                        position:'relative', overflow:'visible', cursor: stickerMode ? 'cell' : 'pointer',
+                        transition:'border-color 0.15s, background 0.15s',
                       }}>
-                      {isToday && <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${C.peach}00,${C.peach},${C.peach}00)`}}/>}
+                      {isToday && <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${C.peach}00,${C.peach},${C.peach}00)`,borderRadius:'14px 14px 0 0'}}/>}
                       <div style={{fontSize:isMobile?10:11,color:isToday?C.peach:C.textDim,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:700}}>{DAYS[date.getDay()]}</div>
                       <div style={{fontSize:isMobile?26:32,fontFamily:"'Playfair Display'",color:isToday?C.peach:C.text,marginBottom:isMobile?8:12,fontWeight:600,lineHeight:1}}>{date.getDate()}</div>
                       {dayEvs.map(ev=>(
-                        <div key={ev.id} onClick={e=>{e.stopPropagation();setSelectedEvent(ev)}} style={{
+                        <div key={ev.id} onClick={e=>{e.stopPropagation();if(!stickerMode)setSelectedEvent(ev)}} style={{
                           background:eventColor(ev)+'20',
                           borderLeft:`3px solid ${eventColor(ev)}`,
                           borderRadius:'0 7px 7px 0', padding: isMobile ? '3px 7px' : '5px 9px', marginBottom:4,
                           fontSize:isMobile?10:11, color:eventColor(ev), fontWeight:600,
                           display:'flex', justifyContent:'space-between', alignItems:'center',
-                          cursor:'pointer', transition:'all 0.15s',
+                          cursor: stickerMode ? 'cell' : 'pointer', transition:'all 0.15s',
                         }}>
                           <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1,fontSize:10}}>
                             {eventLabel(ev)?.replace(/^💑\s?/,'')}
                           </span>
-                          {canDelete(ev)&&(
+                          {canDelete(ev)&&!stickerMode&&(
                             <button onClick={e=>quickDelete(e,ev)} style={{
                               background: confirmDelete===ev.id ? C.rose : 'transparent',
                               border:'none', borderRadius:4, cursor:'pointer', flexShrink:0,
@@ -1269,7 +1274,36 @@ export default function CalendarPage() {
                           )}
                         </div>
                       ))}
-                      {freeSlots.length>0 && <div style={{marginTop:5,fontSize:9,color:C.gold,fontWeight:700}}>✦ {freeSlots.length} free slot{freeSlots.length>1?'s':''}</div>}
+                      {freeSlots.length>0 && !stickerMode && <div style={{marginTop:5,fontSize:9,color:C.gold,fontWeight:700}}>✦ {freeSlots.length} free slot{freeSlots.length>1?'s':''}</div>}
+
+                      {/* ── Stickers on this week cell ── */}
+                      {cellStickers.length > 0 && (
+                        <CanvasStickerLayer
+                          stickers={cellStickers}
+                          onChange={changed => updateDateStickers([
+                            ...calStickers.filter(s => s.date !== ds),
+                            ...changed,
+                          ])}
+                          onDelete={removeDateSticker}
+                          C={C}
+                        />
+                      )}
+
+                      {/* ── Sticker mode overlay hint ── */}
+                      {stickerMode && (
+                        <div style={{
+                          position:'absolute', inset:0, borderRadius:'inherit',
+                          background: isStickerTarget ? C.lavender+'28' : C.lavender+'0a',
+                          border: isStickerTarget ? `2px solid ${C.lavender}88` : 'none',
+                          display:'flex', alignItems:'flex-end', justifyContent:'center',
+                          paddingBottom:8, pointerEvents:'none', transition:'all 0.15s',
+                        }}>
+                          {isStickerTarget
+                            ? <span style={{fontSize:18}}>🎀</span>
+                            : <span style={{fontSize:10,color:C.lavender,fontWeight:700,opacity:0.7}}>＋</span>
+                          }
+                        </div>
+                      )}
                     </div>
                   )
                 })}
