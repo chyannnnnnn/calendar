@@ -459,8 +459,11 @@ export default function CalendarPage() {
   const [editForm, setEditForm] = useState(null)
   // ── Date-attached stickers (synced to Supabase, shared with partner) ──────
   const [calStickers, setCalStickers] = useState([])   // [{ id, date, type, value, x, y, size }]
-  const [showStickerTray, setShowStickerTray] = useState(false)
-  const [stickerTargetDate, setStickerTargetDate] = useState(null) // date string being stickered
+  const [stickerMode, setStickerMode] = useState(false)          // true = sticker edit mode active
+  const [stickerTargetDate, setStickerTargetDate] = useState(null) // which date cell tray is open on
+
+  function enterStickerMode()  { setStickerMode(true); setStickerTargetDate(null) }
+  function exitStickerMode()   { setStickerMode(false); setStickerTargetDate(null) }
 
   // Load stickers from Supabase when partnership is known
   React.useEffect(() => {
@@ -496,8 +499,8 @@ export default function CalendarPage() {
       size: 36,
     }
     setCalStickers(prev => [...prev, s])
-    setShowStickerTray(false)
     setStickerTargetDate(null)
+    // stay in stickerMode so user can add more stickers to other dates
     if (partnershipId) await upsertSticker(s, user.id, partnershipId)
   }
 
@@ -870,14 +873,15 @@ export default function CalendarPage() {
             })}
           </div>
           {calView==='month' && tab==='calendar' && (
-          <button onClick={()=>setShowStickerTray(t=>!t)} style={{
-            background: showStickerTray ? C.lavender : 'none',
-            border:`1px solid ${showStickerTray ? C.lavender : C.border}`,
-            color: showStickerTray ? '#fff' : C.textMid,
-            borderRadius:20, padding: isMobile ? '5px 10px' : '5px 14px',
-            fontSize:isMobile?14:12, cursor:'pointer', flexShrink:0,
-            transition:'all 0.15s', fontWeight:600,
-          }}>🎀{!isMobile && ' Stickers'}</button>
+            <button onClick={()=>stickerMode ? exitStickerMode() : enterStickerMode()} style={{
+              background: stickerMode ? C.lavender : 'none',
+              border:`1.5px solid ${stickerMode ? C.lavender : C.border}`,
+              color: stickerMode ? '#fff' : C.textMid,
+              borderRadius:20, padding: isMobile ? '5px 10px' : '5px 14px',
+              fontSize:isMobile?14:12, cursor:'pointer', flexShrink:0,
+              transition:'all 0.15s', fontWeight:700,
+              boxShadow: stickerMode ? `0 0 0 3px ${C.lavender}44` : 'none',
+            }}>🎀{!isMobile && (stickerMode ? ' Done' : ' Stickers')}</button>
           )}
 
           <button onClick={()=>{setAddForm({title:'',date:toDateStr(new Date()),startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:'',eventType:'mine',location:null,notes:''});setShowAddModal(true)}} style={{
@@ -896,17 +900,34 @@ export default function CalendarPage() {
       {/* ── Main content ── */}
       <div style={{flex:1,position:'relative',overflow:'clip'}}>
       {/* Sticker tray popover — fixed so it doesn't get clipped */}
-      {showStickerTray && stickerTargetDate && (
+      {stickerMode && stickerTargetDate && (
         <div style={{position:'fixed',top:104,right:12,zIndex:200}}>
           <StickerTray
             onAdd={def => addDateSticker(def, stickerTargetDate)}
-            onClose={()=>{setShowStickerTray(false);setStickerTargetDate(null)}}
+            onClose={()=>setStickerTargetDate(null)}
             C={C} isMobile={isMobile}
             date={stickerTargetDate}
           />
         </div>
       )}
-      <main onClick={()=>{setConfirmDelete(null);if(showStickerTray)setShowStickerTray(false)}} style={{height:'100%',padding: isMobile ? '10px 10px' : '14px 24px',overflowY: tab==='compare'?'hidden':'auto',display:'flex',flexDirection:'column',position:'relative',zIndex:1,scrollBehavior:'smooth',WebkitOverflowScrolling:'touch'}}>
+      {/* Sticker mode banner */}
+      {stickerMode && (
+        <div style={{
+          position:'fixed', top:96, left:0, right:0, zIndex:190,
+          background: C.lavender, color:'#fff',
+          padding:'7px 16px', fontSize:12, fontWeight:700,
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+          boxShadow:`0 2px 12px ${C.lavender}66`,
+        }}>
+          <span>🎀 Sticker mode — tap a date to place a sticker</span>
+          <button onClick={exitStickerMode} style={{
+            background:'rgba(255,255,255,0.25)', border:'none',
+            borderRadius:12, padding:'3px 12px', color:'#fff',
+            fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'inherit',
+          }}>✕ Done</button>
+        </div>
+      )}
+      <main onClick={()=>setConfirmDelete(null)} style={{height:'100%',padding: isMobile ? '10px 10px' : '14px 24px',overflowY: tab==='compare'?'hidden':'auto',display:'flex',flexDirection:'column',position:'relative',zIndex:1,scrollBehavior:'smooth',WebkitOverflowScrolling:'touch'}}>
 
         {/* ════ CALENDAR TAB ════ */}
         {tab==='calendar' && (
@@ -927,23 +948,24 @@ export default function CalendarPage() {
                     const freeSlots=findFreeSlots(ds)
                     const hasOurs = dayEvs.some(e=>e.event_type==='ours'||e.title?.startsWith('💑'))
                     const cellStickers = calStickers.filter(s => s.date === ds)
-                    const isStickerTarget = stickerTargetDate === ds
+                    const isStickerTarget = stickerMode && stickerTargetDate === ds
                     return (
                       <div key={i}
-                        onClick={()=>{
+                        onClick={e=>{
                           if (!inMonth) return
-                          if (showStickerTray) {
+                          if (stickerMode) {
+                            e.stopPropagation()
                             setStickerTargetDate(ds)
-                          } else {
-                            goToDay(date)
+                            return
                           }
+                          goToDay(date)
                         }}
                         style={{
                           background: isToday ? C.peach+'11' : isStickerTarget ? C.lavender+'18' : C.surface,
                           border:`1.5px solid ${isStickerTarget ? C.lavender : isToday ? C.peach+'88' : hasOurs ? C.lavender+'55' : C.border}`,
                           borderRadius:isMobile?10:14, padding:isMobile?'8px 5px':'10px 8px',
                           minHeight:isMobile?68:90,
-                          opacity:inMonth?1:0.25, cursor:inMonth?(showStickerTray?'cell':'pointer'):'default',
+                          opacity:inMonth?1:0.25, cursor:inMonth?(stickerMode?'cell':'pointer'):'default',
                           transition:'all 0.15s', position:'relative', overflow:'visible',
                         }}>
                         {isToday && <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${C.peach}00,${C.peach},${C.peach}00)`,borderRadius:'14px 14px 0 0'}}/>}
@@ -953,7 +975,7 @@ export default function CalendarPage() {
                           lineHeight:1,
                         }}>{date.getDate()}</div>
                         {dayEvs.slice(0, isMobile?1:3).map(ev=>(
-                          <div key={ev.id} onClick={e=>{e.stopPropagation();if(!showStickerTray)setSelectedEvent(ev)}} style={{
+                          <div key={ev.id} onClick={e=>{e.stopPropagation();if(!stickerMode)setSelectedEvent(ev)}} style={{
                             background:eventColor(ev)+'20',
                             borderLeft:`3px solid ${eventColor(ev)}`,
                             borderRadius:'0 5px 5px 0', padding:isMobile?'1px 4px':'2px 6px', marginBottom:2,
@@ -983,21 +1005,20 @@ export default function CalendarPage() {
                         )}
 
                         {/* ── "Add sticker here" hint when tray is open ── */}
-                        {inMonth && showStickerTray && isStickerTarget && (
+                        {/* Sticker mode overlay hints */}
+                        {inMonth && stickerMode && (
                           <div style={{
-                            position:'absolute',inset:0,borderRadius:'inherit',
-                            background:C.lavender+'22',
-                            display:'flex',alignItems:'center',justifyContent:'center',
-                            fontSize:18, pointerEvents:'none',
-                          }}>🎀</div>
-                        )}
-                        {inMonth && showStickerTray && !isStickerTarget && (
-                          <div style={{
-                            position:'absolute',inset:0,borderRadius:'inherit',
-                            display:'flex',alignItems:'center',justifyContent:'center',
-                            fontSize:12, color:C.textDim, opacity:0.4, pointerEvents:'none',
-                            fontWeight:600,
-                          }}>tap</div>
+                            position:'absolute', inset:0, borderRadius:'inherit',
+                            background: isStickerTarget ? C.lavender+'28' : C.lavender+'0a',
+                            border: isStickerTarget ? `2px solid ${C.lavender}88` : 'none',
+                            display:'flex', alignItems:'center', justifyContent:'center',
+                            pointerEvents:'none', transition:'all 0.15s',
+                          }}>
+                            {isStickerTarget
+                              ? <span style={{fontSize:20}}>🎀</span>
+                              : <span style={{fontSize:10,color:C.lavender,fontWeight:700,opacity:0.6}}>＋</span>
+                            }
+                          </div>
                         )}
                       </div>
                     )
