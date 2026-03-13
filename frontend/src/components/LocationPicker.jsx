@@ -53,14 +53,20 @@ export default function LocationPicker({ value, onChange, apiKey, readOnly = fal
       .catch(e => { setStatus('error'); setErrorMsg(e.message) })
   }, [open])
 
-  // Init map once SDK is ready — wait a tick for the div to have dimensions
+  // Init map once SDK is ready — use ResizeObserver so we wait until the div
+  // actually has non-zero dimensions (setTimeout(100) is not reliable after
+  // the modal re-opens because the div may still be 0×0 at that point)
   useEffect(() => {
     if (status !== 'ready') return
-    const t = setTimeout(() => {
+    let observer = null
+
+    function initMap() {
       if (!mapDivRef.current || mapRef.current) return
+      const { width, height } = mapDivRef.current.getBoundingClientRect()
+      if (width === 0 || height === 0) return   // not laid out yet — observer will retry
+
       const G      = window.google.maps
       geocoderRef.current = new G.Geocoder()
-      // AutocompleteService is legacy — use AutocompleteSuggestion (new API)
       tokenRef.current    = new G.places.AutocompleteSessionToken()
 
       const center = value?.lat ? { lat: value.lat, lng: value.lng } : { lat: 5.4141, lng: 100.3288 }
@@ -72,8 +78,21 @@ export default function LocationPicker({ value, onChange, apiKey, readOnly = fal
 
       if (value?.lat) dropPin(value.lat, value.lng, false, map)
       map.addListener('click', e => dropPin(e.latLng.lat(), e.latLng.lng(), true))
-    }, 100)
-    return () => clearTimeout(t)
+
+      // Disconnect observer once map is up
+      observer?.disconnect()
+    }
+
+    // Try immediately — if div already has dimensions this is instant
+    initMap()
+
+    // If not ready yet, watch until it gets a non-zero size
+    if (!mapRef.current && mapDivRef.current) {
+      observer = new ResizeObserver(() => initMap())
+      observer.observe(mapDivRef.current)
+    }
+
+    return () => observer?.disconnect()
   }, [status])
 
   async function dropPin(lat, lng, animate, mapArg) {
@@ -153,8 +172,19 @@ export default function LocationPicker({ value, onChange, apiKey, readOnly = fal
 
   function closeModal() {
     setOpen(false)
-    mapRef.current    = null
-    markerRef.current = null
+    // Fully destroy the map so Google Maps releases the div reference.
+    // Without this, re-opening tries to reuse the old detached div.
+    if (markerRef.current) {
+      try { markerRef.current.map = null } catch {}
+      markerRef.current = null
+    }
+    if (mapRef.current) {
+      // Remove all listeners and let GC collect the map instance
+      window.google?.maps?.event?.clearInstanceListeners(mapRef.current)
+      mapRef.current = null
+    }
+    geocoderRef.current = null
+    setStatus('idle')   // ← force re-init next open instead of skipping loadGoogleMaps
   }
 
   function clearPin(e) {
