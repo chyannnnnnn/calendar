@@ -780,19 +780,22 @@ export default function CalendarPage() {
         {/* ════ ADD EVENT MODAL ════ */}
         {showAddModal && (
           <div onClick={()=>setShowAddModal(false)} style={{
-            position:'fixed', inset:0, zIndex:200,
+            position:'fixed',
+            top: isMobile ? 0 : 96,
+            left: 0, right: 0, bottom: 0,
+            zIndex:200,
             background:'rgba(0,0,0,0.5)',
             backdropFilter:'blur(8px)',
             display:'flex',
             alignItems: isMobile ? 'flex-end' : 'center',
             justifyContent:'center',
-            padding: isMobile ? '0' : '24px',
+            padding: isMobile ? '0' : '20px 24px',
           }}>
             <div onClick={e=>e.stopPropagation()} style={{
               width:'100%', maxWidth:500,
               background:C.surface,
               borderRadius: isMobile ? '24px 24px 0 0' : 20,
-              maxHeight: isMobile ? 'calc(100svh - 60px)' : 'min(800px, calc(100vh - 48px))',
+              maxHeight: isMobile ? 'calc(100svh - 60px)' : 'calc(100vh - 96px - 40px)',
               display:'flex', flexDirection:'column',
               boxShadow: isMobile ? '0 -12px 60px rgba(0,0,0,0.4)' : '0 24px 80px rgba(0,0,0,0.35)',
               overflow:'hidden',
@@ -927,20 +930,20 @@ export default function CalendarPage() {
               position:'fixed',
               top: isMobile ? 0 : 96, left:0, right:0, bottom:0,
               zIndex:300,
-              background: isMobile ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.45)',
-              backdropFilter:'blur(6px)',
+              background:'rgba(0,0,0,0.5)',
+              backdropFilter:'blur(8px)',
               display:'flex',
-              alignItems: isMobile ? 'flex-end' : 'flex-start',
+              alignItems: isMobile ? 'flex-end' : 'center',
               justifyContent:'center',
-              padding: isMobile ? '0' : '20px 24px 0',
+              padding: isMobile ? '0' : '20px 24px',
             }}>
               <div onClick={e=>e.stopPropagation()} style={{
                 width:'100%', maxWidth:480,
                 background:C.surface,
-                borderRadius: isMobile ? '24px 24px 0 0' : '0 0 20px 20px',
-                maxHeight: isMobile ? 'calc(100vh - 96px)' : 'calc(100vh - 136px)',
+                borderRadius: isMobile ? '24px 24px 0 0' : 20,
+                maxHeight: isMobile ? 'calc(100vh - 96px)' : 'calc(100vh - 96px - 40px)',
                 display:'flex', flexDirection:'column',
-                boxShadow: isMobile ? '0 -8px 48px rgba(0,0,0,0.3)' : '0 8px 48px rgba(0,0,0,0.25)',
+                boxShadow: isMobile ? '0 -8px 48px rgba(0,0,0,0.3)' : '0 24px 80px rgba(0,0,0,0.3)',
                 overflow:'hidden',
               }}>
                 {/* Fixed header area */}
