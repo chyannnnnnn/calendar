@@ -5,6 +5,7 @@ import { useCalendar } from '../hooks/useCalendar'
 import { useTheme } from '../lib/ThemeContext'
 import LocationPicker from '../components/LocationPicker'
 import CompareView from '../components/CompareView'
+import { fetchStickersForCouple, upsertSticker, deleteSticker as deleteRemoteSticker, subscribeToStickers } from '../lib/stickers'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
@@ -48,18 +49,11 @@ function getMonthDates(base) {
 const HOUR_ROWS = Array.from({length:16},(_,i)=>i+7)
 
 
-// ─── Free-floating sticker system ────────────────────────────────────────────
-// canvasStickers: [ { id, type:'emoji'|'image', value, x, y, size } ]
-// x/y are percentages of the main content area. size is px.
-// Stickers are draggable, resizable, and deletable.
-// Persisted in localStorage as 'uscal_canvas_stickers'.
-
-function loadCanvasStickers() {
-  try { return JSON.parse(localStorage.getItem('uscal_canvas_stickers') || '[]') } catch { return [] }
-}
-function saveCanvasStickers(list) {
-  try { localStorage.setItem('uscal_canvas_stickers', JSON.stringify(list)) } catch {}
-}
+// ─── Calendar Sticker system ─────────────────────────────────────────────────
+// Stickers are tied to a specific date and stored in Supabase so both partners
+// see them. They only appear in Month view on the date cell they belong to.
+// Shape: { id, date, type:'emoji'|'image', value, x, y, size }
+// x/y = % offset within that date cell. size = px.
 
 // ─── Floating background doodles ─────────────────────────────────────────────
 const DOODLES = [
@@ -113,7 +107,7 @@ function FloatingDoodles() {
 // ─── Sticker Tray ─────────────────────────────────────────────────────────────
 const PRESET_STICKERS = ['🌸','💕','🌿','✨','🍀','🌻','🎀','🫧','🍓','🧸','🌈','🎠','🦋','🍵','🌙','⭐','🫶','🎪','🌺','🍡','🐝','🌷','🦄','🍒','🎵','🌊','🍑','🐱','🎨','🍰']
 
-function StickerTray({ onAdd, onClose, C, isMobile }) {
+function StickerTray({ onAdd, onClose, C, isMobile, date }) {
   const [tab, setTab] = React.useState('emoji') // 'emoji' | 'upload'
   const [uploads, setUploads] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('uscal_custom_stickers') || '[]') } catch { return [] }
@@ -143,7 +137,9 @@ function StickerTray({ onAdd, onClose, C, isMobile }) {
       boxShadow:`0 16px 48px rgba(0,0,0,0.25)`,
     }}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-        <div style={{fontFamily:"'Playfair Display'",fontSize:17,color:C.text,fontWeight:600}}>🎀 Sticker Tray</div>
+        <div style={{fontFamily:"'Playfair Display'",fontSize:17,color:C.text,fontWeight:600}}>
+          🎀 {date ? `${new Date(date+'T00:00').toLocaleDateString('en',{month:'short',day:'numeric'})}` : 'Sticker Tray'}
+        </div>
         <div style={{display:'flex',gap:4}}>
           <div style={{display:'flex',background:C.bg,border:`1px solid ${C.border}`,borderRadius:20,padding:2}}>
             {[['emoji','😊'],['upload','🖼️']].map(([t,icon])=>(
@@ -205,7 +201,7 @@ function StickerTray({ onAdd, onClose, C, isMobile }) {
 }
 
 // ─── Canvas Sticker Layer ──────────────────────────────────────────────────────
-function CanvasStickerLayer({ stickers, onChange, C }) {
+function CanvasStickerLayer({ stickers, onChange, onDelete, C }) {
   const [selected, setSelected] = React.useState(null)
 
   // All hot-path state lives in refs so event listeners never go stale
@@ -316,7 +312,11 @@ function CanvasStickerLayer({ stickers, onChange, C }) {
   }
 
   function deleteSticker(id) {
-    onChangeRef.current(stickersRef.current.filter(s => s.id !== id))
+    if (onDelete) {
+      onDelete(id)
+    } else {
+      onChangeRef.current(stickersRef.current.filter(s => s.id !== id))
+    }
     setSelected(null)
   }
 
@@ -440,7 +440,7 @@ function CanvasStickerLayer({ stickers, onChange, C }) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function CalendarPage() {
-  const { user, partner, signOut, isLinked, unlinkPartner } = useAuth()
+  const { user, partner, partnershipId, signOut, isLinked, unlinkPartner } = useAuth()
   const navigate = useNavigate()
   const { events, eventsForDate, findFreeSlots, createEvent, removeEvent, updateEvent, syncStatus } = useCalendar()
   const { C, mode, toggle: toggleTheme } = useTheme()
@@ -457,29 +457,62 @@ export default function CalendarPage() {
   const [saving,   setSaving]   = useState(false)
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [editForm, setEditForm] = useState(null)
-  const [canvasStickers, setCanvasStickers] = useState(()=>loadCanvasStickers())
+  // ── Date-attached stickers (synced to Supabase, shared with partner) ──────
+  const [calStickers, setCalStickers] = useState([])   // [{ id, date, type, value, x, y, size }]
   const [showStickerTray, setShowStickerTray] = useState(false)
+  const [stickerTargetDate, setStickerTargetDate] = useState(null) // date string being stickered
 
-  function updateCanvasStickers(list) {
-    setCanvasStickers(list)
-    saveCanvasStickers(list)
-  }
+  // Load stickers from Supabase when partnership is known
+  React.useEffect(() => {
+    if (!partnershipId) return
+    fetchStickersForCouple(partnershipId).then(rows => {
+      setCalStickers(rows.map(r => ({
+        id: r.id, date: r.date,
+        type: r.sticker_type, value: r.sticker_value,
+        x: r.x, y: r.y, size: r.size,
+      })))
+    })
+    // Subscribe to real-time updates from partner
+    const unsub = subscribeToStickers(partnershipId, () => {
+      fetchStickersForCouple(partnershipId).then(rows => {
+        setCalStickers(rows.map(r => ({
+          id: r.id, date: r.date,
+          type: r.sticker_type, value: r.sticker_value,
+          x: r.x, y: r.y, size: r.size,
+        })))
+      })
+    })
+    return unsub
+  }, [partnershipId])
 
-  function addCanvasSticker(stickerDef) {
-    // Place new sticker near centre with slight randomness
-    const id = Date.now() + Math.random()
-    const newS = {
-      id,
+  async function addDateSticker(stickerDef, date) {
+    const id = crypto.randomUUID()
+    const s = {
+      id, date,
       type:  stickerDef.type,
       value: stickerDef.value,
-      x: 35 + Math.random() * 30,  // 35–65% x
-      y: 20 + Math.random() * 40,  // 20–60% y
-      size: 48,
+      x: 10 + Math.random() * 60,
+      y: 20 + Math.random() * 50,
+      size: 36,
     }
-    const updated = [...canvasStickers, newS]
-    setCanvasStickers(updated)
-    saveCanvasStickers(updated)
+    setCalStickers(prev => [...prev, s])
     setShowStickerTray(false)
+    setStickerTargetDate(null)
+    if (partnershipId) await upsertSticker(s, user.id, partnershipId)
+  }
+
+  async function updateDateStickers(list) {
+    setCalStickers(list)
+    // Persist any changed stickers
+    if (!partnershipId) return
+    for (const s of list) {
+      await upsertSticker(s, user.id, partnershipId)
+    }
+  }
+
+  async function removeDateSticker(id) {
+    setCalStickers(prev => prev.filter(s => s.id !== id))
+    if (partnershipId) await deleteRemoteSticker(id)
   }
   const [confirmDelete, setConfirmDelete] = useState(null) // eventId pending quick-delete confirm
   const [menuOpen, setMenuOpen] = useState(false) // mobile hamburger menu
@@ -836,6 +869,7 @@ export default function CalendarPage() {
               )
             })}
           </div>
+          {calView==='month' && tab==='calendar' && (
           <button onClick={()=>setShowStickerTray(t=>!t)} style={{
             background: showStickerTray ? C.lavender : 'none',
             border:`1px solid ${showStickerTray ? C.lavender : C.border}`,
@@ -844,6 +878,7 @@ export default function CalendarPage() {
             fontSize:isMobile?14:12, cursor:'pointer', flexShrink:0,
             transition:'all 0.15s', fontWeight:600,
           }}>🎀{!isMobile && ' Stickers'}</button>
+          )}
 
           <button onClick={()=>{setAddForm({title:'',date:toDateStr(new Date()),startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:'',eventType:'mine',location:null,notes:''});setShowAddModal(true)}} style={{
             background:C.peach, color:'#fff', border:'none', borderRadius:20,
@@ -860,14 +895,15 @@ export default function CalendarPage() {
 
       {/* ── Main content ── */}
       <div style={{flex:1,position:'relative',overflow:'clip'}}>
-      {/* Canvas sticker layer — floats above scroll content */}
-      {tab==='calendar' && (
-        <CanvasStickerLayer stickers={canvasStickers} onChange={updateCanvasStickers} C={C}/>
-      )}
       {/* Sticker tray popover — fixed so it doesn't get clipped */}
-      {showStickerTray && (
+      {showStickerTray && stickerTargetDate && (
         <div style={{position:'fixed',top:104,right:12,zIndex:200}}>
-          <StickerTray onAdd={addCanvasSticker} onClose={()=>setShowStickerTray(false)} C={C} isMobile={isMobile}/>
+          <StickerTray
+            onAdd={def => addDateSticker(def, stickerTargetDate)}
+            onClose={()=>{setShowStickerTray(false);setStickerTargetDate(null)}}
+            C={C} isMobile={isMobile}
+            date={stickerTargetDate}
+          />
         </div>
       )}
       <main onClick={()=>{setConfirmDelete(null);if(showStickerTray)setShowStickerTray(false)}} style={{height:'100%',padding: isMobile ? '10px 10px' : '14px 24px',overflowY: tab==='compare'?'hidden':'auto',display:'flex',flexDirection:'column',position:'relative',zIndex:1,scrollBehavior:'smooth',WebkitOverflowScrolling:'touch'}}>
@@ -890,16 +926,25 @@ export default function CalendarPage() {
                     const dayEvs=eventsForDate(ds)
                     const freeSlots=findFreeSlots(ds)
                     const hasOurs = dayEvs.some(e=>e.event_type==='ours'||e.title?.startsWith('💑'))
+                    const cellStickers = calStickers.filter(s => s.date === ds)
+                    const isStickerTarget = stickerTargetDate === ds
                     return (
                       <div key={i}
-                        onClick={()=>inMonth&&goToDay(date)}
+                        onClick={()=>{
+                          if (!inMonth) return
+                          if (showStickerTray) {
+                            setStickerTargetDate(ds)
+                          } else {
+                            goToDay(date)
+                          }
+                        }}
                         style={{
-                          background: isToday ? C.peach+'11' : C.surface,
-                          border:`1.5px solid ${isToday ? C.peach+'88' : hasOurs ? C.lavender+'55' : C.border}`,
+                          background: isToday ? C.peach+'11' : isStickerTarget ? C.lavender+'18' : C.surface,
+                          border:`1.5px solid ${isStickerTarget ? C.lavender : isToday ? C.peach+'88' : hasOurs ? C.lavender+'55' : C.border}`,
                           borderRadius:isMobile?10:14, padding:isMobile?'8px 5px':'10px 8px',
                           minHeight:isMobile?68:90,
-                          opacity:inMonth?1:0.25, cursor:inMonth?'pointer':'default',
-                          transition:'all 0.15s', position:'relative', overflow:'hidden',
+                          opacity:inMonth?1:0.25, cursor:inMonth?(showStickerTray?'cell':'pointer'):'default',
+                          transition:'all 0.15s', position:'relative', overflow:'visible',
                         }}>
                         {isToday && <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${C.peach}00,${C.peach},${C.peach}00)`,borderRadius:'14px 14px 0 0'}}/>}
                         <div style={{
@@ -908,7 +953,7 @@ export default function CalendarPage() {
                           lineHeight:1,
                         }}>{date.getDate()}</div>
                         {dayEvs.slice(0, isMobile?1:3).map(ev=>(
-                          <div key={ev.id} onClick={e=>{e.stopPropagation();setSelectedEvent(ev)}} style={{
+                          <div key={ev.id} onClick={e=>{e.stopPropagation();if(!showStickerTray)setSelectedEvent(ev)}} style={{
                             background:eventColor(ev)+'20',
                             borderLeft:`3px solid ${eventColor(ev)}`,
                             borderRadius:'0 5px 5px 0', padding:isMobile?'1px 4px':'2px 6px', marginBottom:2,
@@ -919,7 +964,41 @@ export default function CalendarPage() {
                           </div>
                         ))}
                         {dayEvs.length>(isMobile?1:3) && <div style={{fontSize:9,color:C.textDim,fontWeight:600}}>+{dayEvs.length-(isMobile?1:3)}</div>}
-                        {inMonth&&freeSlots.length>0 && <div style={{position:'absolute',bottom:4,right:5,fontSize:9,color:C.gold,fontWeight:700}}>✦</div>}
+                        {inMonth&&freeSlots.length>0 && <div style={{position:'absolute',bottom:isMobile?4:6,right:isMobile?5:7,fontSize:9,color:C.gold,fontWeight:700,pointerEvents:'none'}}>✦</div>}
+
+                        {/* ── Stickers on this cell ── */}
+                        {cellStickers.length > 0 && (
+                          <CanvasStickerLayer
+                            stickers={cellStickers}
+                            onChange={changed => {
+                              // Merge changed stickers back into the full list
+                              updateDateStickers([
+                                ...calStickers.filter(s => s.date !== ds),
+                                ...changed,
+                              ])
+                            }}
+                            onDelete={removeDateSticker}
+                            C={C}
+                          />
+                        )}
+
+                        {/* ── "Add sticker here" hint when tray is open ── */}
+                        {inMonth && showStickerTray && isStickerTarget && (
+                          <div style={{
+                            position:'absolute',inset:0,borderRadius:'inherit',
+                            background:C.lavender+'22',
+                            display:'flex',alignItems:'center',justifyContent:'center',
+                            fontSize:18, pointerEvents:'none',
+                          }}>🎀</div>
+                        )}
+                        {inMonth && showStickerTray && !isStickerTarget && (
+                          <div style={{
+                            position:'absolute',inset:0,borderRadius:'inherit',
+                            display:'flex',alignItems:'center',justifyContent:'center',
+                            fontSize:12, color:C.textDim, opacity:0.4, pointerEvents:'none',
+                            fontWeight:600,
+                          }}>tap</div>
+                        )}
                       </div>
                     )
                   })}
