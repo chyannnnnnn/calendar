@@ -51,12 +51,21 @@ export default function ProfilePage() {
   const fileRef = useRef()
 
   // Load profile extras from Supabase
+  // Reset state immediately when profileId changes so we never show stale data
+  // from the previous profile while the new fetch is in-flight
   useEffect(() => {
     if (!profileId) return
-    supabase.from('profiles').select('extras, display_name').eq('id', profileId).single()
+    // Clear immediately — prevents old profile's avatar showing on new profile
+    setExtras({})
+    setAvatarUrl(null)
+    setAvatarDraft(null)
+    setEditing(false)
+    setDraft({})
+    supabase.from('profiles').select('extras').eq('id', profileId).single()
       .then(({ data }) => {
-        if (data?.extras) setExtras(data.extras)
-        if (data?.extras?.avatarUrl) setAvatarUrl(data.extras.avatarUrl)
+        const e = data?.extras || {}
+        setExtras(e)
+        setAvatarUrl(e.avatarUrl || null)
       })
   }, [profileId])
 
@@ -68,14 +77,17 @@ export default function ProfilePage() {
 
   function cancelEdit() {
     setDraft({})
-    setAvatarDraft(null)
+    setAvatarDraft(null)  // null means "use avatarUrl" — currentAvatar falls back correctly
     setEditing(false)
   }
 
   async function saveProfile() {
     setSaving(true)
     try {
-      const newExtras = { ...draft, avatarUrl: avatarDraft || extras.avatarUrl || null }
+      // avatarDraft is the newly uploaded image (base64), or null if unchanged.
+      // Fall back to current avatarUrl (already loaded for own profile), not extras.avatarUrl
+      // which can be stale if the user switched profiles before editing.
+      const newExtras = { ...draft, avatarUrl: avatarDraft !== null ? avatarDraft : (avatarUrl || null) }
       const { error } = await supabase
         .from('profiles')
         .update({ extras: newExtras })
@@ -100,7 +112,7 @@ export default function ProfilePage() {
   }
 
   const currentData = editing ? draft : extras
-  const currentAvatar = editing ? avatarDraft : avatarUrl
+  const currentAvatar = editing ? (avatarDraft ?? avatarUrl) : avatarUrl
   const filledFields = FIELD_DEFS.filter(f => currentData[f.key])
 
   const inp = (extra={}) => ({
