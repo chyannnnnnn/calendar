@@ -264,7 +264,7 @@ function StickerTrayPortal({ rect, isMobile, C, date, onAdd, onClose }) {
 //   • containerRef rect is captured once at drag START, not recalculated every move
 //   • Resize uses a large 44px touch target, not a tiny 26px dot
 //   • Controls render in a fixed portal-like position so they never get clipped
-function CanvasStickerLayer({ stickers, onChange, onDelete, onStickerClick, C }) {
+function CanvasStickerLayer({ stickers, onChange, onDelete, onStickerClick, topOffset=0, C }) {
   const containerRef = React.useRef(null)
 
   // Local display state — tracks live position/size while dragging
@@ -367,7 +367,8 @@ function CanvasStickerLayer({ stickers, onChange, onDelete, onStickerClick, C })
     const s = stickers.find(s => s.id === id)
     const cx = e.touches ? e.touches[0].clientX : e.clientX
     const cy = e.touches ? e.touches[0].clientY : e.clientY
-    gestureRef.current = { mode:'drag', id, startX:cx, startY:cy, origX:s.x, origY:s.y, rectW:rect.width, rectH:rect.height }
+    const usableH = Math.max(10, rect.height - topOffset)
+    gestureRef.current = { mode:'drag', id, startX:cx, startY:cy, origX:s.x, origY:s.y, rectW:rect.width, rectH:usableH }
   }
 
   function startResize(e, id) {
@@ -408,18 +409,21 @@ function CanvasStickerLayer({ stickers, onChange, onDelete, onStickerClick, C })
       {stickers.map(s => {
         const isSel  = selected === s.id
         const isLive = live?.id === s.id
-        // While dragging/resizing, show local live values instead of saved props
         const dispX    = (isLive && live.x    != null) ? live.x    : s.x
         const dispY    = (isLive && live.y    != null) ? live.y    : s.y
         const dispSize = (isLive && live.size != null) ? live.size : s.size
         const sz       = Math.round(dispSize)
+        // Translate % position into px accounting for topOffset so stickers
+        // land in the events zone, not behind the date header
+        const containerH = containerRef.current?.getBoundingClientRect().height || 100
+        const usableH    = Math.max(10, containerH - topOffset)
 
         return (
           <div key={s.id}
             style={{
               position:   'absolute',
               left:       `${dispX}%`,
-              top:        `${dispY}%`,
+              top:        `${topOffset + (dispY / 100) * usableH}px`,
               width:      sz,
               height:     sz,
               pointerEvents: 'auto',
@@ -941,6 +945,17 @@ export default function CalendarPage() {
                   >
                     <span style={{fontSize:16}}>🌷</span> {partner?.name||'Partner'}'s Profile
                   </button>}
+                  <button onClick={()=>{navigate('/diary');setMenuOpen(false)}} style={{
+                    width:'100%',display:'flex',alignItems:'center',gap:10,
+                    background:'none',border:'none',borderRadius:10,padding:'9px 12px',
+                    cursor:'pointer',fontSize:13,color:C.text,fontFamily:'inherit',fontWeight:600,
+                    transition:'background 0.1s',textAlign:'left',
+                  }}
+                    onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+                    onMouseLeave={e=>e.currentTarget.style.background='none'}
+                  >
+                    <span style={{fontSize:16}}>📖</span> Our Diary
+                  </button>
                   <div style={{height:1,background:C.border,margin:'6px 0'}}/>
                   {/* Unlink */}
                   {isLinked && <button onClick={()=>{handleUnlink();setMenuOpen(false)}} style={{
@@ -1041,6 +1056,18 @@ export default function CalendarPage() {
                   }}>🌷</span>
                   <span>{partner?.name||'Partner'}'s Profile</span>
                 </button>}
+                {/* Diary */}
+                <button onClick={()=>{navigate('/diary');setMenuOpen(false)}} style={{
+                  width:'100%',display:'flex',alignItems:'center',gap:14,
+                  background:'none',border:'none',borderRadius:14,padding:'13px 10px',
+                  cursor:'pointer',fontSize:15,color:C.text,fontFamily:'inherit',fontWeight:600,textAlign:'left',
+                }}>
+                  <span style={{
+                    width:36,height:36,borderRadius:12,
+                    background:C.peach+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0,
+                  }}>📖</span>
+                  <span>Our Diary</span>
+                </button>
                 {/* Dark mode toggle row */}
                 <button onClick={()=>{toggleTheme();}} style={{
                   width:'100%',display:'flex',alignItems:'center',gap:14,
@@ -1278,6 +1305,7 @@ export default function CalendarPage() {
                             ])}
                             onDelete={removeDateSticker}
                             onStickerClick={()=>{ enterStickerMode(); selectStickerTarget(ds, null) }}
+                            topOffset={isMobile ? 26 : 32}
                             C={C}
                           />
                         )}
@@ -1383,6 +1411,7 @@ export default function CalendarPage() {
                           ])}
                           onDelete={removeDateSticker}
                           onStickerClick={()=>{ enterStickerMode(); selectStickerTarget(ds, null) }}
+                          topOffset={isMobile ? 62 : 72}
                           C={C}
                         />
                       )}

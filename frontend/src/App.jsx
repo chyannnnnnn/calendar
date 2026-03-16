@@ -5,6 +5,7 @@ import LoginPage    from './views/LoginPage'
 import ConnectPage  from './views/ConnectPage'
 import CalendarPage from './views/CalendarPage'
 import ProfilePage  from './views/ProfilePage'
+import DiaryPage    from './views/DiaryPage'
 
 function ProtectedRoute({ children }) {
   const { session, isLoading } = useAuth()
@@ -27,6 +28,7 @@ export default function App() {
             <Route path="/login"   element={<LoginPage />} />
             <Route path="/connect" element={<ProtectedRoute><ConnectPage /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+            <Route path="/diary"   element={<ProtectedRoute><DiaryPage   /></ProtectedRoute>} />
             <Route path="/*"       element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
           </Routes>
         </BrowserRouter>

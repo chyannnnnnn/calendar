@@ -24,6 +24,16 @@ drop policy if exists "Creator manages invite"                on invite_links;
 drop policy if exists "Anyone can read invite to accept"      on invite_links;
 do $$
 begin
+  if exists (select 1 from information_schema.tables where table_name = 'diary_entries') then
+    drop policy if exists "Partners can read diary"   on diary_entries;
+    drop policy if exists "Owner can insert diary"    on diary_entries;
+    drop policy if exists "Owner can update diary"    on diary_entries;
+    drop policy if exists "Owner can delete diary"    on diary_entries;
+  end if;
+end $$;
+
+do $$
+begin
   if exists (select 1 from information_schema.tables where table_name = 'calendar_stickers') then
     drop policy if exists "Partners can read stickers"   on calendar_stickers;
     drop policy if exists "Partners can insert stickers" on calendar_stickers;
@@ -40,6 +50,9 @@ begin
   end if;
   if exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and tablename='calendar_stickers') then
     alter publication supabase_realtime drop table calendar_stickers;
+  end if;
+  if exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and tablename='diary_entries') then
+    alter publication supabase_realtime drop table diary_entries;
   end if;
 end $$;
 
@@ -106,6 +119,23 @@ create table if not exists calendar_stickers (
   updated_at     timestamptz default now()
 );
 
+-- DIARY ENTRIES
+-- Shared journal entries. Both partners can read all entries for their partnership.
+-- Each entry is owned by one author but visible to the partner.
+create table if not exists diary_entries (
+  id             text        primary key,
+  partnership_id uuid        not null references partnerships(id) on delete cascade,
+  author_id      uuid        not null references auth.users(id)   on delete cascade,
+  date           date        not null,
+  title          text        not null default '',
+  body           text        not null default '',
+  mood           text,                             -- emoji mood tag
+  tag            text        default 'everyday',   -- 'everyday'|'date'|'anniversary'|'milestone'|'travel'
+  photo_url      text,                             -- base64 or URL
+  created_at     timestamptz default now(),
+  updated_at     timestamptz default now()
+);
+
 -- INVITE LINKS (kept for future use)
 create table if not exists invite_links (
   id          uuid primary key default gen_random_uuid(),
@@ -156,7 +186,9 @@ begin
     alter table partnerships add constraint partnerships_user_b_key unique (user_b);
   end if;
 end $$;
-create index if not exists events_series_id on events(series_id) where series_id is not null;
+create index if not exists events_series_id   on events(series_id) where series_id is not null;
+create index if not exists diary_partnership  on diary_entries(partnership_id, date desc);
+create index if not exists diary_author       on diary_entries(author_id);
 alter table events  add column if not exists location_lng double precision;
 
 
@@ -319,6 +351,23 @@ create policy "Partners can delete stickers"
     )
   );
 
+-- DIARY ENTRIES
+-- Shared journal entries. Both partners can read all entries for their partnership.
+-- Each entry is owned by one author but visible to the partner.
+create table if not exists diary_entries (
+  id             text        primary key,
+  partnership_id uuid        not null references partnerships(id) on delete cascade,
+  author_id      uuid        not null references auth.users(id)   on delete cascade,
+  date           date        not null,
+  title          text        not null default '',
+  body           text        not null default '',
+  mood           text,                             -- emoji mood tag
+  tag            text        default 'everyday',   -- 'everyday'|'date'|'anniversary'|'milestone'|'travel'
+  photo_url      text,                             -- base64 or URL
+  created_at     timestamptz default now(),
+  updated_at     timestamptz default now()
+);
+
 -- INVITE LINKS
 create policy "Creator manages invite"
   on invite_links for all
@@ -334,6 +383,7 @@ create policy "Anyone can read invite to accept"
 
 alter publication supabase_realtime add table events;
 alter publication supabase_realtime add table calendar_stickers;
+alter publication supabase_realtime add table diary_entries;
 
 
 -- ─── 7. INDEXES ──────────────────────────────────────────────────────────────
