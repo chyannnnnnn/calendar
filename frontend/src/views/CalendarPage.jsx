@@ -264,7 +264,7 @@ function StickerTrayPortal({ rect, isMobile, C, date, onAdd, onClose }) {
 //   • containerRef rect is captured once at drag START, not recalculated every move
 //   • Resize uses a large 44px touch target, not a tiny 26px dot
 //   • Controls render in a fixed portal-like position so they never get clipped
-function CanvasStickerLayer({ stickers, onChange, onDelete, C }) {
+function CanvasStickerLayer({ stickers, onChange, onDelete, onStickerClick, C }) {
   const containerRef = React.useRef(null)
 
   // Local display state — tracks live position/size while dragging
@@ -296,9 +296,21 @@ function CanvasStickerLayer({ stickers, onChange, onDelete, C }) {
     }
   }
 
-  function commitGesture() {
+  function commitGesture(upCx, upCy) {
     const g = gestureRef.current
-    if (!g || !live) { gestureRef.current = null; setLive(null); return }
+    if (!g) { setLive(null); return }
+
+    // Detect tap: if pointer barely moved (<6px), treat as a click not a drag
+    const moved = upCx != null && Math.abs(upCx - g.startX) < 6 && Math.abs(upCy - g.startY) < 6
+    if (moved && g.mode === 'drag') {
+      gestureRef.current = null
+      setLive(null)
+      // Fire tap callback so parent can enter sticker mode
+      onStickerClick?.(g.id)
+      return
+    }
+
+    if (!live) { gestureRef.current = null; setLive(null); return }
     // Build updated list and fire onChange ONCE (triggers Supabase save)
     const updated = stickers.map(s => {
       if (s.id !== g.id) return s
@@ -314,7 +326,7 @@ function CanvasStickerLayer({ stickers, onChange, onDelete, C }) {
   // ── Global listeners — registered once ───────────────────────────────────────
   React.useEffect(() => {
     function onMouseMove(e) { applyMove(e.clientX, e.clientY) }
-    function onMouseUp()    { commitGesture() }
+    function onMouseUp(e)   { commitGesture(e.clientX, e.clientY) }
     function onTouchMove(e) {
       const g = gestureRef.current
       if (!g) return
@@ -329,7 +341,10 @@ function CanvasStickerLayer({ stickers, onChange, onDelete, C }) {
       }
       if (e.touches.length === 1) applyMove(e.touches[0].clientX, e.touches[0].clientY)
     }
-    function onTouchEnd() { commitGesture() }
+    function onTouchEnd(e) {
+      const t = e.changedTouches?.[0]
+      commitGesture(t?.clientX, t?.clientY)
+    }
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup',   onMouseUp)
     window.addEventListener('touchmove', onTouchMove, { passive: false })
@@ -1211,12 +1226,10 @@ export default function CalendarPage() {
                       <div key={i}
                         onClick={e=>{
                           if (!inMonth) return
-                          if (stickerMode) {
-                            e.stopPropagation()
-                            selectStickerTarget(ds, e.currentTarget)
-                            return
-                          }
-                          goToDay(date)
+                          if (stickerMode) { e.stopPropagation(); selectStickerTarget(ds, e.currentTarget); return }
+                          // Tapping cell body opens add-event pre-filled with this date
+                          setAddForm(f=>({...f, date:ds, startTime:'', endTime:'', title:'', recurring:'none', recurUntil:'', location:null, notes:'', isPrivate:false, eventType:'mine'}))
+                          setShowAddModal(true)
                         }}
                         style={{
                           background: isToday ? C.peach+'11' : isStickerTarget ? C.lavender+'18' : C.surface,
@@ -1227,11 +1240,20 @@ export default function CalendarPage() {
                           transition:'all 0.15s', position:'relative', overflow:'visible',
                         }}>
                         {isToday && <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${C.peach}00,${C.peach},${C.peach}00)`,borderRadius:'14px 14px 0 0'}}/>}
-                        <div style={{
-                          fontSize:isMobile?15:18, fontFamily:"'Playfair Display'", fontWeight:600,
-                          color:isToday?C.peach:C.text, marginBottom:isMobile?3:5,
-                          lineHeight:1,
-                        }}>{date.getDate()}</div>
+                        {/* Date number — tapping navigates to day view */}
+                        <div
+                          onClick={e=>{ e.stopPropagation(); if (!inMonth||stickerMode) return; goToDay(date) }}
+                          style={{
+                            fontSize:isMobile?15:18, fontFamily:"'Playfair Display'", fontWeight:600,
+                            color:isToday?C.peach:C.text, marginBottom:isMobile?3:5,
+                            lineHeight:1, display:'inline-block',
+                            cursor:'pointer', borderRadius:6,
+                            padding:'0 3px', margin:'0 -3px',
+                            transition:'background 0.12s',
+                          }}
+                          onMouseEnter={e=>{ if(!stickerMode) e.currentTarget.style.background=C.peach+'22' }}
+                          onMouseLeave={e=>{ e.currentTarget.style.background='transparent' }}
+                        >{date.getDate()}</div>
                         {dayEvs.slice(0, isMobile?1:3).map(ev=>(
                           <div key={ev.id} onClick={e=>{e.stopPropagation();if(!stickerMode)setSelectedEvent(ev)}} style={{
                             background:eventColor(ev)+'20',
@@ -1250,14 +1272,12 @@ export default function CalendarPage() {
                         {cellStickers.length > 0 && (
                           <CanvasStickerLayer
                             stickers={cellStickers}
-                            onChange={changed => {
-                              // Merge changed stickers back into the full list
-                              updateDateStickers([
-                                ...calStickers.filter(s => s.date !== ds),
-                                ...changed,
-                              ])
-                            }}
+                            onChange={changed => updateDateStickers([
+                              ...calStickers.filter(s => s.date !== ds),
+                              ...changed,
+                            ])}
                             onDelete={removeDateSticker}
+                            onStickerClick={()=>{ enterStickerMode(); selectStickerTarget(ds, null) }}
                             C={C}
                           />
                         )}
@@ -1300,7 +1320,9 @@ export default function CalendarPage() {
                     <div key={i}
                       onClick={e=>{
                         if (stickerMode) { e.stopPropagation(); selectStickerTarget(ds, e.currentTarget); return }
-                        goToDay(date)
+                        // Body tap → add event pre-filled with this date
+                        setAddForm(f=>({...f, date:ds, startTime:'', endTime:'', title:'', recurring:'none', recurUntil:'', location:null, notes:'', isPrivate:false, eventType:'mine'}))
+                        setShowAddModal(true)
                       }}
                       style={{
                         background: isToday ? C.peach+'11' : isStickerTarget ? C.lavender+'18' : C.surface,
@@ -1311,7 +1333,19 @@ export default function CalendarPage() {
                       }}>
                       {isToday && <div style={{position:'absolute',top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${C.peach}00,${C.peach},${C.peach}00)`,borderRadius:'14px 14px 0 0'}}/>}
                       <div style={{fontSize:isMobile?10:11,color:isToday?C.peach:C.textDim,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.08em',fontWeight:700}}>{DAYS[date.getDay()]}</div>
-                      <div style={{fontSize:isMobile?26:32,fontFamily:"'Playfair Display'",color:isToday?C.peach:C.text,marginBottom:isMobile?8:12,fontWeight:600,lineHeight:1}}>{date.getDate()}</div>
+                      {/* Date number — tap to go to day view */}
+                      <div
+                        onClick={e=>{ e.stopPropagation(); if(stickerMode) return; goToDay(date) }}
+                        style={{
+                          fontSize:isMobile?26:32, fontFamily:"'Playfair Display'",
+                          color:isToday?C.peach:C.text, marginBottom:isMobile?8:12,
+                          fontWeight:600, lineHeight:1, display:'inline-block',
+                          cursor:'pointer', borderRadius:8, padding:'0 4px', margin:'0 -4px',
+                          transition:'background 0.12s',
+                        }}
+                        onMouseEnter={e=>{ if(!stickerMode) e.currentTarget.style.background=C.peach+'22' }}
+                        onMouseLeave={e=>{ e.currentTarget.style.background='transparent' }}
+                      >{date.getDate()}</div>
                       {dayEvs.map(ev=>(
                         <div key={ev.id} onClick={e=>{e.stopPropagation();if(!stickerMode)setSelectedEvent(ev)}} style={{
                           background:eventColor(ev)+'20',
@@ -1348,6 +1382,7 @@ export default function CalendarPage() {
                             ...changed,
                           ])}
                           onDelete={removeDateSticker}
+                          onStickerClick={()=>{ enterStickerMode(); selectStickerTarget(ds, null) }}
                           C={C}
                         />
                       )}
