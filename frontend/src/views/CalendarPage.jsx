@@ -90,10 +90,10 @@ function FloatingDoodles() {
           50%      { opacity: 0.9; }
         }
         .doodle { animation: float var(--dur) ease-in-out var(--delay) infinite, pulse-soft calc(var(--dur) * 1.4) ease-in-out infinite; }
-        input::placeholder, textarea::placeholder { color: ${C.textDim}; opacity: 1; }
+        input::placeholder, textarea::placeholder { opacity: 0.5; }
         input[type="date"]::-webkit-calendar-picker-indicator,
         input[type="time"]::-webkit-calendar-picker-indicator {
-          filter: ${mode === 'dark' ? 'invert(1) opacity(0.6)' : 'opacity(0.5)'};
+          opacity: 0.55;
           cursor: pointer;
         }
       `}</style>
