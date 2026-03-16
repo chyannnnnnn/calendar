@@ -5,15 +5,15 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 // @ts-ignore
-const BREVO_API_KEY        = Deno.env.get('BREVO_API_KEY')!
+const RESEND_API_KEY    = Deno.env.get('RESEND_API_KEY')!
 // @ts-ignore
-const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!
+const SUPABASE_URL      = Deno.env.get('SUPABASE_URL')!
 // @ts-ignore
-const SUPABASE_SERVICE_KEY = Deno.env.get('SERVICE_ROLE_KEY')! 
+const SERVICE_ROLE_KEY  = Deno.env.get('SERVICE_ROLE_KEY')!
 // @ts-ignore
-const FROM_EMAIL           = Deno.env.get('FROM_EMAIL')! 
+const FROM_EMAIL        = Deno.env.get('FROM_EMAIL') ?? 'us.cal <digest@yourdomain.com>'
 // @ts-ignore
-const APP_URL              = Deno.env.get('APP_URL')! 
+const APP_URL           = Deno.env.get('APP_URL') ?? 'https://your-app.vercel.app'
 
 function toDateStr(d: Date): string { return d.toISOString().slice(0, 10) }
 
@@ -123,7 +123,7 @@ function buildEmail({ recipientName, partnerName, todayStr, tomorrowStr, myToday
 
   <div style="background:#FFF8F0;border:1px solid #E8D5BC;border-radius:12px;padding:16px 20px;margin-bottom:16px;">
     <h2 style="color:#3D2B1F;font-size:15px;margin:0 0 14px;">📅 Today · ${fmtDate(todayDate)}</h2>
-    ${oursToday.length>0?`<p style="color:#8B72BE;font-size:12px;font-weight:700;margin:0 0 6px;text-transform:uppercase;">💕 Together</p>${section(oursToday,'#8B72BE','')}<div style="height:10px;"></div>`:''}
+    ${oursToday.length>0?`<p style="color:#8B72BE;font-size:12px;font-weight:700;margin:0 0 6px;text-transform:uppercase;">💕 Together</p>${section(oursToday,'#8B72BE','')} <div style="height:10px;"></div>`:''}
     <p style="color:#4BAF84;font-size:12px;font-weight:700;margin:0 0 6px;text-transform:uppercase;">🌿 ${recipientName}</p>
     ${section(myToday,'#4BAF84','Nothing scheduled — enjoy the freedom! 🌱')}
     <div style="height:10px;"></div>
@@ -133,7 +133,7 @@ function buildEmail({ recipientName, partnerName, todayStr, tomorrowStr, myToday
 
   <div style="background:#FFF8F0;border:1px solid #E8D5BC;border-radius:12px;padding:16px 20px;margin-bottom:20px;">
     <h2 style="color:#3D2B1F;font-size:15px;margin:0 0 14px;">🌅 Tomorrow · ${fmtDate(tomorrowDate)}</h2>
-    ${oursTomorrow.length>0?`<p style="color:#8B72BE;font-size:12px;font-weight:700;margin:0 0 6px;text-transform:uppercase;">💕 Together</p>${section(oursTomorrow,'#8B72BE','')}<div style="height:10px;"></div>`:''}
+    ${oursTomorrow.length>0?`<p style="color:#8B72BE;font-size:12px;font-weight:700;margin:0 0 6px;text-transform:uppercase;">💕 Together</p>${section(oursTomorrow,'#8B72BE','')} <div style="height:10px;"></div>`:''}
     <p style="color:#4BAF84;font-size:12px;font-weight:700;margin:0 0 6px;text-transform:uppercase;">🌿 ${recipientName}</p>
     ${section(myTomorrow,'#4BAF84','Nothing scheduled tomorrow 🌱')}
     <div style="height:10px;"></div>
@@ -158,22 +158,30 @@ function buildEmail({ recipientName, partnerName, todayStr, tomorrowStr, myToday
 // ─── Main ─────────────────────────────────────────────────────────────────────
 // @ts-ignore
 Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*' } })
+  }
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 })
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+  if (!RESEND_API_KEY) return new Response(JSON.stringify({ error: 'RESEND_API_KEY not set' }), { status: 500 })
+  if (!SERVICE_ROLE_KEY) return new Response(JSON.stringify({ error: 'SERVICE_ROLE_KEY not set' }), { status: 500 })
+
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
   const today    = new Date()
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1)
   const todayStr    = toDateStr(today)
   const tomorrowStr = toDateStr(tomorrow)
   const in30Days    = toDateStr(new Date(Date.now() + 30*24*60*60*1000))
 
-  const { data: partnerships, error: pErr } = await supabase.from('partnerships').select('id,user_a,user_b')
+  const { data: partnerships, error: pErr } = await supabase
+    .from('partnerships').select('id,user_a,user_b')
   if (pErr) return new Response(JSON.stringify({ error: pErr.message }), { status: 500 })
   if (!partnerships?.length) return new Response(JSON.stringify({ sent: 0, reason: 'No partnerships' }))
 
   const userIds = [...new Set(partnerships.flatMap((p:any) => [p.user_a, p.user_b]))]
 
-  const { data: profiles } = await supabase.from('profiles').select('id,display_name,email,extras').in('id', userIds)
+  const { data: profiles } = await supabase
+    .from('profiles').select('id,display_name,email,extras').in('id', userIds)
   const profileMap: Record<string,any> = {}
   profiles?.forEach((p:any) => profileMap[p.id] = p)
 
@@ -181,7 +189,10 @@ Deno.serve(async (req: Request) => {
     .in('owner_id', userIds).gte('date', todayStr).lte('date', in30Days)
     .order('date').order('start_time')
   const eventsByOwner: Record<string,any[]> = {}
-  allEvents?.forEach((e:any) => { if (!eventsByOwner[e.owner_id]) eventsByOwner[e.owner_id]=[]; eventsByOwner[e.owner_id].push(e) })
+  allEvents?.forEach((e:any) => {
+    if (!eventsByOwner[e.owner_id]) eventsByOwner[e.owner_id] = []
+    eventsByOwner[e.owner_id].push(e)
+  })
 
   let sent = 0
   const errors: string[] = []
@@ -191,8 +202,8 @@ Deno.serve(async (req: Request) => {
     for (const [meId, themId] of [[partnership.user_a, partnership.user_b],[partnership.user_b, partnership.user_a]]) {
       const me   = profileMap[meId]
       const them = profileMap[themId]
-      if (!me?.email) continue
-      if (me.extras?.emailDigest === false) continue
+      if (!me?.email) { errors.push(`No email for user ${meId}`); continue }
+      if (me.extras?.emailDigest === false) continue   // user opted out
 
       const myEvents    = eventsByOwner[meId]   ?? []
       const theirEvents = eventsByOwner[themId] ?? []
@@ -213,14 +224,24 @@ Deno.serve(async (req: Request) => {
         seen2.add(e.id); return true
       })
 
-      const freeToday = findFreeSlots(myEvents.filter((e:any)=>e.date===todayStr), theirEvents.filter((e:any)=>e.date===todayStr))
+      const freeToday = findFreeSlots(
+        myEvents.filter((e:any) => e.date===todayStr),
+        theirEvents.filter((e:any) => e.date===todayStr)
+      )
 
       const countdownKeywords = /anniversary|birthday|bday|wedding|graduation|vacation|trip|holiday/i
       const seen3 = new Set<string>()
       const countdowns = [...myEvents,...theirEvents]
-        .filter((e:any) => { if (e.date<=todayStr||seen3.has(e.id)) return false; seen3.add(e.id); return e.is_recurring||countdownKeywords.test(e.title) })
-        .slice(0,5)
-        .map((e:any) => { const d=new Date(e.date+'T12:00:00'); return { title:e.title, date:`${MONTHS[d.getMonth()]} ${d.getDate()}`, days:daysUntil(e.date) } })
+        .filter((e:any) => {
+          if (e.date<=todayStr||seen3.has(e.id)) return false
+          seen3.add(e.id)
+          return e.is_recurring || countdownKeywords.test(e.title)
+        })
+        .slice(0, 5)
+        .map((e:any) => {
+          const d = new Date(e.date+'T12:00:00')
+          return { title:e.title, date:`${MONTHS[d.getMonth()]} ${d.getDate()}`, days:daysUntil(e.date) }
+        })
         .sort((a:any,b:any) => a.days-b.days)
 
       const html = buildEmail({
@@ -232,20 +253,32 @@ Deno.serve(async (req: Request) => {
         oursToday, oursTomorrow, freeToday, countdowns, appUrl: APP_URL,
       })
 
-      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      // Send via Resend
+      const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
-        headers: { 'Content-Type':'application/json', 'api-key': BREVO_API_KEY },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${RESEND_API_KEY}`,
+        },
         body: JSON.stringify({
-          sender:  { email: FROM_EMAIL },
-          to:      [{ email: me.email, name: me.display_name || me.email }],
+          from:    FROM_EMAIL,
+          to:      [me.email],
           subject: `🌿 Your day with ${them?.display_name||'your partner'} — ${todayStr}`,
-          htmlContent: html,
+          html,
         }),
       })
 
-      if (res.ok) { sent++ } else { errors.push(`${me.email}: ${await res.text()}`) }
+      if (res.ok) {
+        sent++
+      } else {
+        const errBody = await res.text()
+        errors.push(`${me.email}: ${errBody}`)
+      }
     }
   }
 
-  return new Response(JSON.stringify({ sent, errors }), { headers: { 'Content-Type':'application/json' } })
+  return new Response(
+    JSON.stringify({ sent, errors, total_partnerships: partnerships.length }),
+    { headers: { 'Content-Type': 'application/json' } }
+  )
 })

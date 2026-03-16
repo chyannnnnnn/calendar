@@ -291,6 +291,7 @@ export default function ProfilePage() {
                       value={draft[f.key]||''}
                       onChange={e=>setDraft(d=>({...d,[f.key]:e.target.value}))}
                       placeholder={f.placeholder}
+                      {...(f.type==='date' && f.key==='birthday' ? { max: new Date().toISOString().slice(0,10) } : {})}
                       style={inp({colorScheme: mode==='dark'?'dark':'light'})}
                     />
                   )}

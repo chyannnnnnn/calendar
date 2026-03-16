@@ -36,11 +36,16 @@ export function AuthProvider({ children }) {
       .single()
 
     if (myProfile) {
-      setProfile({ id: userId, name: myProfile.display_name || myProfile.id })
+      setProfile({
+        id:        userId,
+        name:      myProfile.display_name || myProfile.id,
+        email:     myProfile.email || '',
+        avatarUrl: myProfile.extras?.avatarUrl || null,
+      })
     } else {
       // Fallback to auth metadata if profile row not ready yet
       const { data: { user } } = await supabase.auth.getUser()
-      setProfile({ id: userId, name: user.user_metadata?.display_name || user.email })
+      setProfile({ id: userId, name: user.user_metadata?.display_name || user.email, email: user.email, avatarUrl: null })
     }
 
     // 2. Check for a partnership
@@ -64,8 +69,9 @@ export function AuthProvider({ children }) {
         .single()
 
       setPartner({
-        id: partnerId,
-        name: partnerProfile?.display_name || 'Partner',
+        id:        partnerId,
+        name:      partnerProfile?.display_name || 'Partner',
+        avatarUrl: partnerProfile?.extras?.avatarUrl || null,
       })
     } else {
       setPartner(null)

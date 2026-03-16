@@ -910,8 +910,15 @@ export default function CalendarPage() {
                 <div style={{
                   width:22,height:22,borderRadius:'50%',
                   background:C.mint+'33',border:`1.5px solid ${C.mint}66`,
+                  overflow:'hidden',
                   display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,
-                }}>🌿</div>
+                  flexShrink:0,
+                }}>
+                  {user?.avatarUrl
+                    ? <img src={user.avatarUrl} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                    : '🌿'
+                  }
+                </div>
                 <span>{user?.name||'Account'}</span>
                 <span style={{fontSize:9,opacity:0.6}}>{menuOpen?'▲':'▼'}</span>
               </button>
@@ -924,9 +931,17 @@ export default function CalendarPage() {
                   boxShadow:`0 8px 32px rgba(0,0,0,0.18)`,
                 }}>
                   {/* User info */}
-                  <div style={{padding:'10px 12px 8px',borderBottom:`1px solid ${C.border}`,marginBottom:6}}>
-                    <div style={{fontSize:13,fontWeight:700,color:C.text}}>{user?.name||'You'}</div>
-                    <div style={{fontSize:11,color:C.textDim,marginTop:1}}>{user?.email||''}</div>
+                  <div style={{padding:'10px 12px 8px',borderBottom:`1px solid ${C.border}`,marginBottom:6,display:'flex',alignItems:'center',gap:10}}>
+                    <div style={{width:36,height:36,borderRadius:'50%',background:C.mint+'33',border:`2px solid ${C.mint}55`,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>
+                      {user?.avatarUrl
+                        ? <img src={user.avatarUrl} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                        : '🌿'
+                      }
+                    </div>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:700,color:C.text}}>{user?.name||'You'}</div>
+                      <div style={{fontSize:11,color:C.textDim,marginTop:1}}>{user?.email||''}</div>
+                    </div>
                   </div>
                   {/* Profile links */}
                   <button onClick={()=>{navigate('/profile?view=mine');setMenuOpen(false)}} style={{
@@ -1001,7 +1016,12 @@ export default function CalendarPage() {
               display:'flex',alignItems:'center',justifyContent:'center',
               cursor:'pointer',fontSize:16,flexShrink:0,transition:'all 0.15s',
             }}>
-              {menuOpen ? '✕' : '🌿'}
+              {menuOpen
+                ? <span style={{fontSize:16}}>✕</span>
+                : user?.avatarUrl
+                  ? <img src={user.avatarUrl} alt="" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}}/>
+                  : <span style={{fontSize:16}}>🌿</span>
+              }
             </button>
           )}
         </div>
@@ -1030,8 +1050,14 @@ export default function CalendarPage() {
                 <div style={{
                   width:46,height:46,borderRadius:'50%',flexShrink:0,
                   background:C.mint+'22',border:`2px solid ${C.mint}55`,
+                  overflow:'hidden',
                   display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,
-                }}>🌿</div>
+                }}>
+                  {user?.avatarUrl
+                    ? <img src={user.avatarUrl} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                    : '🌿'
+                  }
+                </div>
                 <div>
                   <div style={{fontSize:15,fontWeight:800,color:C.text}}>{user?.name||'You'}</div>
                   <div style={{fontSize:12,color:C.textDim,marginTop:1}}>{user?.email||''}</div>
