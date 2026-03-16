@@ -24,6 +24,7 @@ export default function BucketPage() {
   const [text,      setText]      = useState('')
   const [cat,       setCat]       = useState('experience')
   const [saving,    setSaving]    = useState(false)
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
   const [toast,     setToast]     = useState(null)
   const [celebrate, setCelebrate] = useState(null) // item just ticked
 
@@ -260,11 +261,26 @@ export default function BucketPage() {
 
       {/* ── Add modal ── */}
       {showAdd && (
-        <div onClick={()=>setShowAdd(false)} style={{ position:'fixed', inset:0, zIndex:200, background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)', display:'flex', alignItems:'flex-end', justifyContent:'center' }}>
-          <div onClick={e=>e.stopPropagation()} style={{ width:'min(560px,100%)', background:C.surface, borderRadius:'24px 24px 0 0', padding:'20px 20px 32px', boxShadow:'0 -8px 40px rgba(0,0,0,0.25)' }}>
-            <div style={{ textAlign:'center', marginBottom:16 }}>
-              <div style={{ width:40, height:4, borderRadius:2, background:C.border, margin:'0 auto 12px' }}/>
+        <div onClick={()=>setShowAdd(false)} style={{
+          position:'fixed', inset:0, zIndex:200, background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)',
+          display:'flex',
+          alignItems: isMobile ? 'flex-end' : 'center',
+          justifyContent:'center',
+          padding: isMobile ? 0 : 20,
+        }}>
+          <div onClick={e=>e.stopPropagation()} style={{
+            width:'min(520px,100%)',
+            background:C.surface,
+            borderRadius: isMobile ? '24px 24px 0 0' : 20,
+            padding: isMobile ? '20px 20px 32px' : '28px 28px 28px',
+            boxShadow: isMobile ? '0 -8px 40px rgba(0,0,0,0.25)' : '0 24px 64px rgba(0,0,0,0.3)',
+          }}>
+            <div style={{ marginBottom:18, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              {isMobile && <div style={{ width:40, height:4, borderRadius:2, background:C.border, margin:'0 auto 12px', display:'block' }}/>}
               <div style={{ fontFamily:"'Playfair Display'", fontSize:18, color:C.text }}>Add to bucket list ✨</div>
+              {!isMobile && (
+                <button onClick={()=>setShowAdd(false)} style={{ background:'none', border:`1px solid ${C.border}`, borderRadius:8, width:30, height:30, cursor:'pointer', color:C.textDim, fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+              )}
             </div>
 
             {/* Category */}
