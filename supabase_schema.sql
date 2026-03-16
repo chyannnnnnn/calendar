@@ -24,6 +24,26 @@ drop policy if exists "Creator manages invite"                on invite_links;
 drop policy if exists "Anyone can read invite to accept"      on invite_links;
 do $$
 begin
+  if exists (select 1 from information_schema.tables where table_name = 'whiteboard_items') then
+    drop policy if exists "Partners can read whiteboard"  on whiteboard_items;
+    drop policy if exists "Partners can insert whiteboard" on whiteboard_items;
+    drop policy if exists "Partners can update whiteboard" on whiteboard_items;
+    drop policy if exists "Partners can delete whiteboard" on whiteboard_items;
+  end if;
+end $$;
+
+do $$
+begin
+  if exists (select 1 from information_schema.tables where table_name = 'bucket_items') then
+    drop policy if exists "Partners can read bucket"   on bucket_items;
+    drop policy if exists "Partners can insert bucket" on bucket_items;
+    drop policy if exists "Partners can update bucket" on bucket_items;
+    drop policy if exists "Partners can delete bucket" on bucket_items;
+  end if;
+end $$;
+
+do $$
+begin
   if exists (select 1 from information_schema.tables where table_name = 'diary_entries') then
     drop policy if exists "Partners can read diary"   on diary_entries;
     drop policy if exists "Owner can insert diary"    on diary_entries;
@@ -53,6 +73,12 @@ begin
   end if;
   if exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and tablename='diary_entries') then
     alter publication supabase_realtime drop table diary_entries;
+  end if;
+  if exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and tablename='whiteboard_items') then
+    alter publication supabase_realtime drop table whiteboard_items;
+  end if;
+  if exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and tablename='bucket_items') then
+    alter publication supabase_realtime drop table bucket_items;
   end if;
 end $$;
 
@@ -136,6 +162,38 @@ create table if not exists diary_entries (
   updated_at     timestamptz default now()
 );
 
+-- WHITEBOARD ITEMS
+-- Freeform sticky notes, photos, and decorations on a shared canvas.
+create table if not exists whiteboard_items (
+  id             text        primary key,
+  partnership_id uuid        not null references partnerships(id) on delete cascade,
+  author_id      uuid        not null references auth.users(id)   on delete cascade,
+  type           text        not null default 'note',   -- 'note'|'photo'|'sticker'
+  content        text        not null default '',       -- text, base64, or emoji
+  x              float       not null default 10,       -- % position
+  y              float       not null default 10,
+  w              float       not null default 20,       -- % width
+  rotation       float       not null default 0,        -- degrees
+  color          text        not null default '#FFF9C4',
+  font_size      int         not null default 14,
+  created_at     timestamptz default now(),
+  updated_at     timestamptz default now()
+);
+
+-- BUCKET LIST ITEMS
+-- Shared couple to-do / bucket list.
+create table if not exists bucket_items (
+  id             text        primary key,
+  partnership_id uuid        not null references partnerships(id) on delete cascade,
+  author_id      uuid        not null references auth.users(id)   on delete cascade,
+  text           text        not null,
+  category       text        not null default 'experience', -- 'travel'|'food'|'experience'|'creative'|'milestone'
+  done           boolean     not null default false,
+  done_by        uuid        references auth.users(id),
+  done_at        timestamptz,
+  created_at     timestamptz default now()
+);
+
 -- INVITE LINKS (kept for future use)
 create table if not exists invite_links (
   id          uuid primary key default gen_random_uuid(),
@@ -189,6 +247,8 @@ end $$;
 create index if not exists events_series_id   on events(series_id) where series_id is not null;
 create index if not exists diary_partnership  on diary_entries(partnership_id, date desc);
 create index if not exists diary_author       on diary_entries(author_id);
+create index if not exists whiteboard_partnership on whiteboard_items(partnership_id);
+create index if not exists bucket_partnership     on bucket_items(partnership_id, done, created_at);
 alter table events  add column if not exists location_lng double precision;
 
 
@@ -368,6 +428,38 @@ create table if not exists diary_entries (
   updated_at     timestamptz default now()
 );
 
+-- WHITEBOARD ITEMS
+-- Freeform sticky notes, photos, and decorations on a shared canvas.
+create table if not exists whiteboard_items (
+  id             text        primary key,
+  partnership_id uuid        not null references partnerships(id) on delete cascade,
+  author_id      uuid        not null references auth.users(id)   on delete cascade,
+  type           text        not null default 'note',   -- 'note'|'photo'|'sticker'
+  content        text        not null default '',       -- text, base64, or emoji
+  x              float       not null default 10,       -- % position
+  y              float       not null default 10,
+  w              float       not null default 20,       -- % width
+  rotation       float       not null default 0,        -- degrees
+  color          text        not null default '#FFF9C4',
+  font_size      int         not null default 14,
+  created_at     timestamptz default now(),
+  updated_at     timestamptz default now()
+);
+
+-- BUCKET LIST ITEMS
+-- Shared couple to-do / bucket list.
+create table if not exists bucket_items (
+  id             text        primary key,
+  partnership_id uuid        not null references partnerships(id) on delete cascade,
+  author_id      uuid        not null references auth.users(id)   on delete cascade,
+  text           text        not null,
+  category       text        not null default 'experience', -- 'travel'|'food'|'experience'|'creative'|'milestone'
+  done           boolean     not null default false,
+  done_by        uuid        references auth.users(id),
+  done_at        timestamptz,
+  created_at     timestamptz default now()
+);
+
 -- INVITE LINKS
 create policy "Creator manages invite"
   on invite_links for all
@@ -384,6 +476,8 @@ create policy "Anyone can read invite to accept"
 alter publication supabase_realtime add table events;
 alter publication supabase_realtime add table calendar_stickers;
 alter publication supabase_realtime add table diary_entries;
+alter publication supabase_realtime add table whiteboard_items;
+alter publication supabase_realtime add table bucket_items;
 
 
 -- ─── 7. INDEXES ──────────────────────────────────────────────────────────────

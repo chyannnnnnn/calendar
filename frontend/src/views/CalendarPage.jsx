@@ -617,6 +617,44 @@ export default function CalendarPage() {
     setCalStickers(prev => prev.filter(s => s.id !== id))
     if (partnershipId) await deleteRemoteSticker(id)
   }
+  // ── Countdown tiles ──────────────────────────────────────────────────────
+  const countdowns = React.useMemo(() => {
+    const today = new Date(); today.setHours(0,0,0,0)
+    const todayStr = toDateStr(today)
+    const items = []
+
+    // Birthdays from profiles
+    const addBirthday = (name, birthday, color, emoji) => {
+      if (!birthday) return
+      const [,m,d] = birthday.split('-').map(Number)
+      // This year's birthday
+      let next = new Date(today.getFullYear(), m-1, d)
+      if (next < today) next = new Date(today.getFullYear()+1, m-1, d)
+      const days = Math.round((next - today) / 86400000)
+      if (days <= 60) items.push({ label: `${emoji} ${name}'s birthday`, days, color, date: toDateStr(next) })
+    }
+
+    // Get birthday from profile extras (loaded via AuthContext)
+    const myExtras   = null  // extras loaded separately in ProfilePage; use events for now
+    const _ = myExtras
+
+    // Anniversary / birthday / milestone events
+    const keywords = /anniversary|birthday|bday|wedding|graduation|vacation|trip/i
+    const seen = new Set()
+    events.forEach(ev => {
+      if (seen.has(ev.id)) return
+      if (!keywords.test(ev.title)) return
+      if (ev.date <= todayStr) return
+      seen.add(ev.id)
+      const days = Math.round((new Date(ev.date+'T00:00').getTime() - today.getTime()) / 86400000)
+      if (days > 90) return
+      const color = eventColor(ev)
+      items.push({ label: ev.title.replace(/^💑\s?/,''), days, color, date: ev.date })
+    })
+
+    return items.sort((a,b) => a.days - b.days).slice(0, 8)
+  }, [events, toDateStr(new Date())])
+
   const [confirmDelete, setConfirmDelete] = useState(null) // eventId pending quick-delete confirm
   const [seriesDeleteModal, setSeriesDeleteModal] = useState(null) // event with series_id pending delete choice
   const [menuOpen, setMenuOpen] = useState(false) // mobile hamburger menu
@@ -974,9 +1012,25 @@ export default function CalendarPage() {
                   }}
                     onMouseEnter={e=>e.currentTarget.style.background=C.bg}
                     onMouseLeave={e=>e.currentTarget.style.background='none'}
-                  >
-                    <span style={{fontSize:16}}>📖</span> Our Diary
-                  </button>
+                  ><span style={{fontSize:16}}>📖</span> Our Diary</button>
+                  <button onClick={()=>{navigate('/board');setMenuOpen(false)}} style={{
+                    width:'100%',display:'flex',alignItems:'center',gap:10,
+                    background:'none',border:'none',borderRadius:10,padding:'9px 12px',
+                    cursor:'pointer',fontSize:13,color:C.text,fontFamily:'inherit',fontWeight:600,
+                    transition:'background 0.1s',textAlign:'left',
+                  }}
+                    onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+                    onMouseLeave={e=>e.currentTarget.style.background='none'}
+                  ><span style={{fontSize:16}}>🪵</span> Our Board</button>
+                  <button onClick={()=>{navigate('/bucket');setMenuOpen(false)}} style={{
+                    width:'100%',display:'flex',alignItems:'center',gap:10,
+                    background:'none',border:'none',borderRadius:10,padding:'9px 12px',
+                    cursor:'pointer',fontSize:13,color:C.text,fontFamily:'inherit',fontWeight:600,
+                    transition:'background 0.1s',textAlign:'left',
+                  }}
+                    onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+                    onMouseLeave={e=>e.currentTarget.style.background='none'}
+                  ><span style={{fontSize:16}}>🪣</span> Bucket List</button>
                   <div style={{height:1,background:C.border,margin:'6px 0'}}/>
                   {/* Unlink */}
                   {isLinked && <button onClick={()=>{handleUnlink();setMenuOpen(false)}} style={{
@@ -1100,6 +1154,22 @@ export default function CalendarPage() {
                   }}>📖</span>
                   <span>Our Diary</span>
                 </button>
+                <button onClick={()=>{navigate('/board');setMenuOpen(false)}} style={{
+                  width:'100%',display:'flex',alignItems:'center',gap:14,
+                  background:'none',border:'none',borderRadius:14,padding:'13px 10px',
+                  cursor:'pointer',fontSize:15,color:C.text,fontFamily:'inherit',fontWeight:600,textAlign:'left',
+                }}>
+                  <span style={{width:36,height:36,borderRadius:12,background:C.gold+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>🪵</span>
+                  <span>Our Board</span>
+                </button>
+                <button onClick={()=>{navigate('/bucket');setMenuOpen(false)}} style={{
+                  width:'100%',display:'flex',alignItems:'center',gap:14,
+                  background:'none',border:'none',borderRadius:14,padding:'13px 10px',
+                  cursor:'pointer',fontSize:15,color:C.text,fontFamily:'inherit',fontWeight:600,textAlign:'left',
+                }}>
+                  <span style={{width:36,height:36,borderRadius:12,background:C.mint+'22',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>🪣</span>
+                  <span>Bucket List</span>
+                </button>
                 {/* Dark mode toggle row */}
                 <button onClick={()=>{toggleTheme();}} style={{
                   width:'100%',display:'flex',alignItems:'center',gap:14,
@@ -1162,6 +1232,47 @@ export default function CalendarPage() {
           <div style={{background:C.mint+'14',borderTop:`1px solid ${C.mint}28`,padding:'7px 16px',fontSize:12,color:C.mint,display:'flex',alignItems:'center',gap:10}}>
             <span style={{flex:1}}>🌻 Connect with your partner to see shared availability.</span>
             <button onClick={()=>navigate('/connect')} style={{background:C.mint,color:'#fff',border:'none',borderRadius:20,padding:'4px 14px',fontSize:11,fontWeight:700,cursor:'pointer',flexShrink:0}}>Connect ✨</button>
+          </div>
+        )}
+
+        {/* ── Countdown strip ── */}
+        {isLinked && countdowns.length > 0 && (
+          <div style={{
+            borderTop:`1px solid ${C.border}`,
+            padding:'0',
+            background:C.surface,
+            overflowX:'auto',
+            flexShrink:0,
+            display:'flex',
+            scrollbarWidth:'none',
+          }}>
+            <div style={{display:'flex',gap:0,padding:'0 12px',alignItems:'stretch'}}>
+              {countdowns.map((c,i) => (
+                <div key={i} style={{
+                  display:'flex', alignItems:'center', gap:8,
+                  padding:'6px 14px',
+                  borderRight:`1px solid ${C.border}`,
+                  flexShrink:0,
+                }}>
+                  <div style={{
+                    width:32,height:32,borderRadius:'50%',
+                    background:c.color+'22',border:`1.5px solid ${c.color}44`,
+                    display:'flex',alignItems:'center',justifyContent:'center',
+                    flexShrink:0,
+                  }}>
+                    <span style={{fontSize:14,fontWeight:800,color:c.color}}>
+                      {c.days===0?'🎉':c.days}
+                    </span>
+                  </div>
+                  <div>
+                    <div style={{fontSize:11,fontWeight:700,color:C.text,whiteSpace:'nowrap',maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}}>{c.label}</div>
+                    <div style={{fontSize:10,color:C.textDim}}>
+                      {c.days===0?'Today!':c.days===1?'Tomorrow':`${c.days} days away`}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
