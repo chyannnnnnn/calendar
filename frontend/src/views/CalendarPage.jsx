@@ -90,6 +90,12 @@ function FloatingDoodles() {
           50%      { opacity: 0.9; }
         }
         .doodle { animation: float var(--dur) ease-in-out var(--delay) infinite, pulse-soft calc(var(--dur) * 1.4) ease-in-out infinite; }
+        input::placeholder, textarea::placeholder { color: ${C.textDim}; opacity: 1; }
+        input[type="date"]::-webkit-calendar-picker-indicator,
+        input[type="time"]::-webkit-calendar-picker-indicator {
+          filter: ${mode === 'dark' ? 'invert(1) opacity(0.6)' : 'opacity(0.5)'};
+          cursor: pointer;
+        }
       `}</style>
       {DOODLES.map(d=>(
         <div key={d.id} className="doodle" style={{
@@ -841,7 +847,7 @@ export default function CalendarPage() {
     }).filter(d=>d.slots.length>0)
   })()
 
-  const inp = { width:'100%',background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:'10px 12px',color:C.text,fontSize:14,outline:'none',boxSizing:'border-box',colorScheme:'dark',fontFamily:'inherit' }
+  const inp = { width:'100%',background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:'10px 12px',color:C.text,fontSize:14,outline:'none',boxSizing:'border-box',colorScheme:mode==='dark'?'dark':'light',fontFamily:'inherit' }
 
   return (
     <div style={{minHeight:'100vh',background:C.bg,color:C.text,fontFamily:"'Nunito',sans-serif",display:'flex',flexDirection:'column',position:'relative'}}>
@@ -1227,21 +1233,21 @@ export default function CalendarPage() {
           }}>✕ Done</button>
         </div>
       )}
-      <main onClick={()=>setConfirmDelete(null)} style={{height:'100%',padding: isMobile ? '10px 10px' : '14px 24px',overflowY: tab==='compare'?'hidden':'auto',display:'flex',flexDirection:'column',position:'relative',zIndex:1,scrollBehavior:'smooth',WebkitOverflowScrolling:'touch'}}>
+      <main onClick={()=>setConfirmDelete(null)} style={{height:'100%',padding: isMobile ? '10px 10px' : '14px 24px',overflowY: (calView==='day'||tab==='compare')?'auto':'hidden',display:'flex',flexDirection:'column',position:'relative',zIndex:1,scrollBehavior:'smooth',WebkitOverflowScrolling:'touch'}}>
 
         {/* ════ CALENDAR TAB ════ */}
         {tab==='calendar' && (
           <>
             {/* MONTH VIEW */}
             {calView==='month' && (
-              <div>
+              <div style={{flex:1,display:'flex',flexDirection:'column',minHeight:0,overflow:'hidden'}}>
                 {/* Day headers */}
-                <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:isMobile?2:4,marginBottom:isMobile?4:8}}>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:isMobile?2:4,marginBottom:isMobile?3:6,flexShrink:0}}>
                   {(isMobile?['S','M','T','W','T','F','S']:DAYS).map((d,i)=>(
                     <div key={i} style={{textAlign:'center',fontSize:isMobile?10:11,color:C.textDim,padding:'4px 0',textTransform:'uppercase',letterSpacing:'0.06em',fontWeight:700}}>{d}</div>
                   ))}
                 </div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:isMobile?3:5}}>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gridAutoRows:'1fr',gap:isMobile?3:5,flex:1,minHeight:0}}>
                   {monthDates.map(({date,inMonth},i)=>{
                     const ds=toDateStr(date), isToday=ds===todayStr
                     const dayEvs=eventsForDate(ds)
@@ -1261,8 +1267,7 @@ export default function CalendarPage() {
                         style={{
                           background: isToday ? C.peach+'11' : isStickerTarget ? C.lavender+'18' : C.surface,
                           border:`1.5px solid ${isStickerTarget ? C.lavender : isToday ? C.peach+'88' : hasOurs ? C.lavender+'55' : C.border}`,
-                          borderRadius:isMobile?10:14, padding:isMobile?'10px 8px':'14px 12px',
-                          minHeight:isMobile?160:200,
+                          borderRadius:isMobile?10:14, padding:isMobile?'8px 6px':'10px 8px',
                           opacity:inMonth?1:0.25, cursor:inMonth?(stickerMode?'cell':'pointer'):'default',
                           transition:'all 0.15s', position:'relative', overflow:'visible',
                         }}>
@@ -1271,8 +1276,8 @@ export default function CalendarPage() {
                         <div
                           onClick={e=>{ e.stopPropagation(); if (!inMonth||stickerMode) return; goToDay(date) }}
                           style={{
-                            fontSize:isMobile?22:28, fontFamily:"'Playfair Display'", fontWeight:600,
-                            color:isToday?C.peach:C.text, marginBottom:isMobile?6:10,
+                            fontSize:isMobile?16:20, fontFamily:"'Playfair Display'", fontWeight:600,
+                            color:isToday?C.peach:C.text, marginBottom:isMobile?3:5,
                             lineHeight:1, display:'inline-block',
                             cursor:'pointer', borderRadius:6,
                             padding:'0 3px', margin:'0 -3px',
@@ -1305,7 +1310,7 @@ export default function CalendarPage() {
                             ])}
                             onDelete={removeDateSticker}
                             onStickerClick={()=>{ enterStickerMode(); selectStickerTarget(ds, null) }}
-                            topOffset={isMobile ? 42 : 52}
+                            topOffset={isMobile ? 28 : 36}
                             C={C}
                           />
                         )}
@@ -1335,8 +1340,8 @@ export default function CalendarPage() {
 
             {/* WEEK VIEW */}
             {calView==='week' && (
-              <div style={{overflowX: isMobile ? 'auto' : 'visible', marginLeft: isMobile ? -10 : 0, marginRight: isMobile ? -10 : 0, paddingLeft: isMobile ? 10 : 0, paddingRight: isMobile ? 10 : 0}}>
-              <div style={{display:'grid', gridTemplateColumns:`repeat(7,${isMobile ? 'minmax(110px,1fr)' : '1fr'})`, gap:6, minWidth: isMobile ? 770 : 'unset'}}>
+              <div style={{overflowX: isMobile ? 'auto' : 'visible', marginLeft: isMobile ? -10 : 0, marginRight: isMobile ? -10 : 0, paddingLeft: isMobile ? 10 : 0, paddingRight: isMobile ? 10 : 0, flex:1, display:'flex', flexDirection:'column', minHeight:0}}>
+              <div style={{display:'grid', gridTemplateColumns:`repeat(7,${isMobile ? 'minmax(110px,1fr)' : '1fr'})`, gap:6, minWidth: isMobile ? 770 : 'unset', flex:1, minHeight:0}}>
                 {weekDates.map((date,i)=>{
                   const ds=toDateStr(date), isToday=ds===todayStr
                   const dayEvs=eventsForDate(ds)
@@ -1355,7 +1360,7 @@ export default function CalendarPage() {
                       style={{
                         background: isToday ? C.peach+'11' : isStickerTarget ? C.lavender+'18' : C.surface,
                         border:`1.5px solid ${isStickerTarget ? C.lavender : isToday ? C.peach+'88' : hasOurs ? C.lavender+'55' : C.border}`,
-                        borderRadius:14, padding:'14px 12px', minHeight: isMobile ? 160 : 220,
+                        borderRadius:14, padding:'14px 12px',
                         position:'relative', overflow:'visible', cursor: stickerMode ? 'cell' : 'pointer',
                         transition:'border-color 0.15s, background 0.15s',
                       }}>
@@ -1411,7 +1416,7 @@ export default function CalendarPage() {
                           ])}
                           onDelete={removeDateSticker}
                           onStickerClick={()=>{ enterStickerMode(); selectStickerTarget(ds, null) }}
-                          topOffset={isMobile ? 62 : 72}
+                          topOffset={isMobile ? 44 : 54}
                           C={C}
                         />
                       )}
