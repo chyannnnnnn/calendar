@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { clearPartnerEvents, clearLocalDB } from '../lib/sync'
+import { clearPartnerEvents, clearLocalDB, pullEvents } from '../lib/sync'
 
 const AuthContext = createContext(null)
 
@@ -96,46 +96,71 @@ export function AuthProvider({ children }) {
   async function linkWithPartner(partnerEmail) {
     const myId = session.user.id
 
-    // 1. Find partner's profile by email via the profiles table
-    //    We match on display_name as fallback, but primarily use auth lookup
-    //    via a Supabase RPC (we call a simple search on profiles joined to auth)
+    // 1. Find partner's profile by email
     const { data: found, error } = await supabase
       .from('profiles')
       .select('id, display_name')
       .eq('email', partnerEmail)
       .maybeSingle()
 
-    // profiles table may not have email — search via auth users view instead
-    // We use a workaround: store email in profiles on signup
     if (error || !found) throw new Error('No account found with that email. Make sure your partner has signed up first.')
     if (found.id === myId) throw new Error("That's your own email!")
 
-    // 2. Check not already linked
-    const { data: existing } = await supabase
+    // 2. Check YOU are not already in a partnership
+    const { data: myExisting } = await supabase
       .from('partnerships')
       .select('id')
       .or(`user_a.eq.${myId},user_b.eq.${myId}`)
       .maybeSingle()
 
-    if (existing) throw new Error('You are already linked with a partner.')
+    if (myExisting) throw new Error('You are already linked with a partner. Unlink first.')
 
-    // 3. Create partnership
+    // 3. Check the PARTNER is not already in a partnership
+    const { data: theirExisting } = await supabase
+      .from('partnerships')
+      .select('id')
+      .or(`user_a.eq.${found.id},user_b.eq.${found.id}`)
+      .maybeSingle()
+
+    if (theirExisting) throw new Error('That person is already linked with someone else.')
+
+    // 4. Create partnership — DB unique constraints enforce one-per-user at DB level too
     const { error: insertError } = await supabase
       .from('partnerships')
       .insert({ user_a: myId, user_b: found.id })
 
-    if (insertError) throw new Error('Failed to link. Please try again.')
+    if (insertError) {
+      // 409 / unique violation = race condition, one of us just linked to someone else
+      if (insertError.code === '23505') throw new Error('Could not link — one of you just connected with someone else.')
+      throw new Error('Failed to link. Please try again.')
+    }
 
     await loadProfile(myId)
   }
 
   async function unlinkPartner() {
     if (!partnershipId) return
+    const partnerIdToWipe = partner?.id
+
+    // Delete the partnership row — cascades to stickers automatically
     await supabase.from('partnerships').delete().eq('id', partnershipId)
-    // Immediately wipe partner's events from local Dexie DB
-    if (partner?.id) await clearPartnerEvents(partner.id)
+
+    // Also try deleting by user membership in case partnershipId is stale
+    const myId = session?.user?.id
+    if (myId) {
+      await supabase.from('partnerships').delete().or(`user_a.eq.${myId},user_b.eq.${myId}`)
+    }
+
+    // Wipe partner events from local IndexedDB immediately
+    if (partnerIdToWipe) await clearPartnerEvents(partnerIdToWipe)
+    // Pull fresh events from Supabase — RLS now won't return ex-partner's events
+    try { await pullEvents() } catch {}
+
     setPartner(null)
     setPartnershipId(null)
+
+    // Reload profile to get clean state from Supabase
+    if (myId) await loadProfile(myId)
   }
 
   const value = {

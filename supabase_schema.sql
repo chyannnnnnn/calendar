@@ -129,6 +129,33 @@ alter table events  add column if not exists location     text        not null d
 alter table events  add column if not exists notes        text        not null default '';
 alter table events  add column if not exists location_lat double precision;
 alter table events  add column if not exists series_id    uuid;
+
+-- Enforce one-partnership-per-user on existing tables
+-- (safe to re-run — DO blocks swallow duplicate constraint errors)
+do $$
+begin
+  -- First delete any orphan/duplicate partnerships (keep the most recent one per user)
+  delete from partnerships p1
+  using partnerships p2
+  where p1.user_a = p2.user_a and p1.id < p2.id;
+
+  delete from partnerships p1
+  using partnerships p2
+  where p1.user_b = p2.user_b and p1.id < p2.id;
+
+  -- Now add the unique constraints if they don't exist
+  if not exists (
+    select 1 from pg_constraint where conname = 'partnerships_user_a_key'
+  ) then
+    alter table partnerships add constraint partnerships_user_a_key unique (user_a);
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint where conname = 'partnerships_user_b_key'
+  ) then
+    alter table partnerships add constraint partnerships_user_b_key unique (user_b);
+  end if;
+end $$;
 create index if not exists events_series_id on events(series_id) where series_id is not null;
 alter table events  add column if not exists location_lng double precision;
 
@@ -214,14 +241,24 @@ create policy "Owner can delete own events"
   on events for delete
   using (auth.uid() = owner_id);
 
--- Partner can read events (app hides details for private ones)
+-- Partner can read events: ONLY the direct partner in the same partnership row.
+-- This prevents scenario where A-B and A-C both exist (which DB now blocks, but
+-- belt-and-suspenders): C cannot read B's events even if A is in both.
 create policy "Partner can read events"
   on events for select
   using (
     exists (
       select 1 from partnerships p
-      where (p.user_a = auth.uid() and p.user_b = owner_id)
-         or (p.user_b = auth.uid() and p.user_a = owner_id)
+      where p.id = (
+        -- Find the ONE partnership that includes the current viewer
+        select p2.id from partnerships p2
+        where p2.user_a = auth.uid() or p2.user_b = auth.uid()
+        limit 1
+      )
+      and (
+        (p.user_a = auth.uid() and p.user_b = owner_id) or
+        (p.user_b = auth.uid() and p.user_a = owner_id)
+      )
     )
   );
 
