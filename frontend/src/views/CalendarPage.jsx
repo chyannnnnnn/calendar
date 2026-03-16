@@ -1261,8 +1261,8 @@ export default function CalendarPage() {
                         style={{
                           background: isToday ? C.peach+'11' : isStickerTarget ? C.lavender+'18' : C.surface,
                           border:`1.5px solid ${isStickerTarget ? C.lavender : isToday ? C.peach+'88' : hasOurs ? C.lavender+'55' : C.border}`,
-                          borderRadius:isMobile?10:14, padding:isMobile?'8px 5px':'10px 8px',
-                          minHeight:isMobile?68:90,
+                          borderRadius:isMobile?10:14, padding:isMobile?'10px 8px':'14px 12px',
+                          minHeight:isMobile?160:200,
                           opacity:inMonth?1:0.25, cursor:inMonth?(stickerMode?'cell':'pointer'):'default',
                           transition:'all 0.15s', position:'relative', overflow:'visible',
                         }}>
@@ -1271,8 +1271,8 @@ export default function CalendarPage() {
                         <div
                           onClick={e=>{ e.stopPropagation(); if (!inMonth||stickerMode) return; goToDay(date) }}
                           style={{
-                            fontSize:isMobile?15:18, fontFamily:"'Playfair Display'", fontWeight:600,
-                            color:isToday?C.peach:C.text, marginBottom:isMobile?3:5,
+                            fontSize:isMobile?22:28, fontFamily:"'Playfair Display'", fontWeight:600,
+                            color:isToday?C.peach:C.text, marginBottom:isMobile?6:10,
                             lineHeight:1, display:'inline-block',
                             cursor:'pointer', borderRadius:6,
                             padding:'0 3px', margin:'0 -3px',
@@ -1305,7 +1305,7 @@ export default function CalendarPage() {
                             ])}
                             onDelete={removeDateSticker}
                             onStickerClick={()=>{ enterStickerMode(); selectStickerTarget(ds, null) }}
-                            topOffset={isMobile ? 26 : 32}
+                            topOffset={isMobile ? 42 : 52}
                             C={C}
                           />
                         )}
