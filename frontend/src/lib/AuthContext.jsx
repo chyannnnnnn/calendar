@@ -106,48 +106,36 @@ export function AuthProvider({ children }) {
   async function linkWithPartner(partnerEmail) {
     const myId = session.user.id
 
-    // 1. Find partner's profile by email
-    const { data: found, error } = await supabase
-      .from('profiles')
-      .select('id, display_name')
-      .eq('email', partnerEmail)
-      .maybeSingle()
+    // 1. Find partner by email using SECURITY DEFINER function (bypasses RLS)
+    const { data: foundRows, error: findError } = await supabase
+      .rpc('find_profile_by_email', { lookup_email: partnerEmail.trim().toLowerCase() })
 
-    if (error || !found) throw new Error('No account found with that email. Make sure your partner has signed up first.')
+    if (findError || !foundRows || foundRows.length === 0) {
+      throw new Error('No account found with that email. Make sure your partner has signed up first.')
+    }
+    const found = foundRows[0]
     if (found.id === myId) throw new Error("That's your own email!")
 
-    // 2. Check YOU are not already in ANY partnership (either column)
-    const { data: myRows } = await supabase
-      .from('partnerships')
-      .select('id')
-      .or(`user_a.eq.${myId},user_b.eq.${myId}`)
-      .limit(5)  // get up to 5 so we detect corrupt duplicate rows too
+    // 2. Use SECURITY DEFINER RPC to safely check + insert in one atomic operation.
+    //    This bypasses RLS so it can see ALL partnerships, not just ones the
+    //    current user is already in. This is the fix for the core bug where
+    //    B could not see A's existing A↔C partnership due to RLS filtering.
+    const { data: result, error: rpcError } = await supabase
+      .rpc('safe_link_partner', { my_id: myId, partner_id: found.id })
 
-    if (myRows && myRows.length > 0) throw new Error('You are already linked with a partner. Unlink first.')
+    if (rpcError) throw new Error('Failed to link. Please try again.')
 
-    // 3. Check the PARTNER is not already in ANY partnership (either column)
-    const { data: theirRows } = await supabase
-      .from('partnerships')
-      .select('id')
-      .or(`user_a.eq.${found.id},user_b.eq.${found.id}`)
-      .limit(5)
-
-    if (theirRows && theirRows.length > 0) throw new Error(`${found.display_name || 'That person'} is already linked with someone else.`)
-
-    // 4. Insert — DB trigger will also enforce one-per-user as a safety net
-    const { error: insertError } = await supabase
-      .from('partnerships')
-      .insert({ user_a: myId, user_b: found.id })
-
-    if (insertError) {
-      // Trigger raised exception or race condition
-      if (insertError.code === 'P0001' || insertError.message?.includes('already in a partnership')) {
-        throw new Error('Could not link — one of you is already connected with someone else.')
-      }
-      if (insertError.code === '23505') {
-        throw new Error('Could not link — one of you is already connected with someone else.')
-      }
-      throw new Error('Failed to link. Please try again.')
+    switch (result) {
+      case 'ok':
+        break
+      case 'self':
+        throw new Error("That's your own email!")
+      case 'you_linked':
+        throw new Error('You are already linked with a partner. Unlink first.')
+      case 'them_linked':
+        throw new Error(`${found.display_name || 'That person'} is already linked with someone else.`)
+      default:
+        throw new Error('Failed to link. Please try again.')
     }
 
     await loadProfile(myId)
