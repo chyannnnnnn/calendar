@@ -22,6 +22,7 @@ export default function AppShell({ children }) {
 
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [menuAnchor,   setMenuAnchor]   = useState(null)  // DOMRect of ⚙ button
   const [isMobile, setIsMobile] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < 768
   )
@@ -290,86 +291,97 @@ export default function AppShell({ children }) {
             )}
           </div>
 
-          {/* Controls row: theme toggle + ··· menu */}
-          <div style={{display:'flex', gap:4}}>
-            {/* Theme toggle */}
-            <button onClick={toggleTheme} title={mode==='light'?'Dark mode':'Light mode'}
-              style={{
-                flex: sidebarOpen ? 1 : 1,
-                display:'flex', alignItems:'center', justifyContent:'center',
-                gap: sidebarOpen ? 6 : 0,
-                background:'none', border:`1px solid ${C.border}`,
-                borderRadius:10, padding:'7px 8px',
-                cursor:'pointer', color:C.textMid,
-                fontFamily:"'Nunito',sans-serif", transition:'background 0.15s',
-                whiteSpace:'nowrap', overflow:'hidden',
-              }}
-              onMouseEnter={e=>e.currentTarget.style.background=C.bg}
-              onMouseLeave={e=>e.currentTarget.style.background='none'}
-            >
-              <span style={{fontSize:13}}>{mode==='light'?'🌙':'☀️'}</span>
-              {sidebarOpen && <span style={{fontSize:11,fontWeight:600}}>{mode==='light'?'Dark':'Light'}</span>}
-            </button>
-
-            {/* ··· More menu (sign out, disconnect) */}
-            <div style={{position:'relative', flexShrink:0}}>
-              <button onClick={()=>setUserMenuOpen(o=>!o)} title="More options"
+          {/* Controls row — only shown when sidebar is expanded */}
+          {sidebarOpen && (
+            <div style={{display:'flex', gap:4, marginTop:2}}>
+              {/* Theme toggle */}
+              <button onClick={toggleTheme} title={mode==='light'?'Dark mode':'Light mode'}
                 style={{
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                  background: userMenuOpen ? C.bg : 'none', border:`1px solid ${userMenuOpen ? C.borderHi : C.border}`,
-                  borderRadius:10, padding:'7px 10px',
-                  cursor:'pointer', color:C.textMid, fontSize:14,
-                  transition:'all 0.15s',
+                  flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+                  background:'none', border:`1px solid ${C.border}`,
+                  borderRadius:10, padding:'7px 8px',
+                  cursor:'pointer', color:C.textMid,
+                  fontFamily:"'Nunito',sans-serif", transition:'background 0.15s',
                 }}
                 onMouseEnter={e=>e.currentTarget.style.background=C.bg}
-                onMouseLeave={e=>{ if(!userMenuOpen) e.currentTarget.style.background='none' }}
-              >···</button>
+                onMouseLeave={e=>e.currentTarget.style.background='none'}
+              >
+                <span style={{fontSize:13}}>{mode==='light'?'🌙':'☀️'}</span>
+                <span style={{fontSize:11,fontWeight:600}}>{mode==='light'?'Dark':'Light'}</span>
+              </button>
 
-              {userMenuOpen && (
-                <>
-                  <div onClick={()=>setUserMenuOpen(false)} style={{position:'fixed',inset:0,zIndex:99}}/>
-                  <div style={{
-                    position:'absolute', bottom:'calc(100% + 6px)', right:0, zIndex:100,
-                    background:C.surface, border:`1px solid ${C.border}`,
-                    borderRadius:14, overflow:'hidden', minWidth:160,
-                    boxShadow:`0 -8px 32px rgba(0,0,0,0.18)`,
-                  }}>
-                    <button onClick={()=>{navigate('/profile');setUserMenuOpen(false)}} style={{
-                      width:'100%',display:'flex',alignItems:'center',gap:8,
-                      background:'none',border:'none',padding:'10px 14px',
-                      cursor:'pointer',fontSize:12,color:C.text,
-                      fontFamily:"'Nunito',sans-serif",fontWeight:600,textAlign:'left',
-                    }}
-                      onMouseEnter={e=>e.currentTarget.style.background=C.bg}
-                      onMouseLeave={e=>e.currentTarget.style.background='none'}
-                    ><span>🌿</span> My Profile</button>
-                    {isLinked && (
-                      <button onClick={async()=>{if(confirm('Disconnect from '+partner?.name+'?')){await unlinkPartner()}setUserMenuOpen(false)}} style={{
-                        width:'100%',display:'flex',alignItems:'center',gap:8,
-                        background:'none',border:'none',padding:'10px 14px',
-                        cursor:'pointer',fontSize:12,color:C.rose,
-                        fontFamily:"'Nunito',sans-serif",fontWeight:600,textAlign:'left',
-                        borderTop:`1px solid ${C.border}`,
-                      }}
-                        onMouseEnter={e=>e.currentTarget.style.background=C.rose+'12'}
-                        onMouseLeave={e=>e.currentTarget.style.background='none'}
-                      ><span>💔</span> Disconnect</button>
-                    )}
-                    <button onClick={()=>{signOut();setUserMenuOpen(false)}} style={{
-                      width:'100%',display:'flex',alignItems:'center',gap:8,
-                      background:'none',border:'none',padding:'10px 14px',
-                      cursor:'pointer',fontSize:12,color:C.textMid,
-                      fontFamily:"'Nunito',sans-serif",fontWeight:600,textAlign:'left',
-                      borderTop:`1px solid ${C.border}`,
-                    }}
-                      onMouseEnter={e=>e.currentTarget.style.background=C.bg}
-                      onMouseLeave={e=>e.currentTarget.style.background='none'}
-                    ><span>🚪</span> Sign out</button>
-                  </div>
-                </>
-              )}
+              {/* ⚙ Account menu — uses fixed positioning so it never clips the sidebar */}
+              <div style={{position:'relative', flexShrink:0}}>
+                <button
+                  ref={el => { if (el) el._el = el }}
+                  onClick={(e)=>{ const r=e.currentTarget.getBoundingClientRect(); setMenuAnchor(r); setUserMenuOpen(o=>!o) }}
+                  title="Account"
+                  style={{
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    background: userMenuOpen ? C.bg : 'none',
+                    border:`1px solid ${userMenuOpen ? C.borderHi : C.border}`,
+                    borderRadius:10, padding:'7px 11px',
+                    cursor:'pointer', color:C.textMid, fontSize:13,
+                    transition:'all 0.15s',
+                  }}
+                  onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+                  onMouseLeave={e=>{ if(!userMenuOpen) e.currentTarget.style.background='none' }}
+                >⚙</button>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Account popup — fixed so it never gets clipped by sidebar overflow:hidden */}
+          {userMenuOpen && menuAnchor && (
+            <>
+              <div onClick={()=>setUserMenuOpen(false)} style={{position:'fixed',inset:0,zIndex:499}}/>
+              <div style={{
+                position:'fixed',
+                bottom: window.innerHeight - menuAnchor.top + 6,
+                left: menuAnchor.left,
+                zIndex:500,
+                background:C.surface, border:`1px solid ${C.border}`,
+                borderRadius:14, overflow:'hidden', minWidth:180,
+                boxShadow:`0 -8px 32px rgba(0,0,0,0.22)`,
+              }}>
+                <div style={{padding:'10px 14px 8px', borderBottom:`1px solid ${C.border}`}}>
+                  <div style={{fontSize:12,fontWeight:700,color:C.text}}>{user?.name||'You'}</div>
+                  <div style={{fontSize:10,color:C.textDim,marginTop:1}}>{user?.email||''}</div>
+                </div>
+                <button onClick={()=>{navigate('/profile');setUserMenuOpen(false)}} style={{
+                  width:'100%',display:'flex',alignItems:'center',gap:8,
+                  background:'none',border:'none',padding:'10px 14px',
+                  cursor:'pointer',fontSize:12,color:C.text,
+                  fontFamily:"'Nunito',sans-serif",fontWeight:600,textAlign:'left',
+                }}
+                  onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+                  onMouseLeave={e=>e.currentTarget.style.background='none'}
+                ><span>🌿</span> My Profile</button>
+                {isLinked && (
+                  <button onClick={async()=>{if(confirm('Disconnect from '+partner?.name+'?')){await unlinkPartner()}setUserMenuOpen(false)}} style={{
+                    width:'100%',display:'flex',alignItems:'center',gap:8,
+                    background:'none',border:'none',padding:'10px 14px',
+                    cursor:'pointer',fontSize:12,color:C.rose,
+                    fontFamily:"'Nunito',sans-serif",fontWeight:600,textAlign:'left',
+                    borderTop:`1px solid ${C.border}`,
+                  }}
+                    onMouseEnter={e=>e.currentTarget.style.background=C.rose+'12'}
+                    onMouseLeave={e=>e.currentTarget.style.background='none'}
+                  ><span>💔</span> Disconnect</button>
+                )}
+                <button onClick={()=>{signOut();setUserMenuOpen(false)}} style={{
+                  width:'100%',display:'flex',alignItems:'center',gap:8,
+                  background:'none',border:'none',padding:'10px 14px',
+                  cursor:'pointer',fontSize:12,color:C.textMid,
+                  fontFamily:"'Nunito',sans-serif",fontWeight:600,textAlign:'left',
+                  borderTop:`1px solid ${C.border}`,
+                }}
+                  onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+                  onMouseLeave={e=>e.currentTarget.style.background='none'}
+                ><span>🚪</span> Sign out</button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
