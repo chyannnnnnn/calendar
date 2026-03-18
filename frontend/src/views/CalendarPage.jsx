@@ -5,6 +5,7 @@ import { useCalendar } from '../hooks/useCalendar'
 import { useTheme } from '../lib/ThemeContext'
 import LocationPicker from '../components/LocationPicker'
 import CompareView from '../components/CompareView'
+import { supabase } from '../lib/supabase'
 import { fetchStickersForCouple, upsertSticker, deleteSticker as deleteRemoteSticker, subscribeToStickers } from '../lib/stickers'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -542,13 +543,35 @@ export default function CalendarPage() {
   const [calView,  setCalView]  = useState('week')
   const [navDate,  setNavDate]  = useState(new Date())
   const [tab,      setTab]      = useState('calendar')
-  const [addForm,  setAddForm]  = useState({ title:'', date:'', startTime:'', endTime:'', isPrivate:false, recurring:'none', recurUntil:'', eventType:'mine', location:null, notes:'' })
+  const SPECIAL_PRESETS = [
+    { emoji:'💍', label:'Anniversary', prefix:'💍 Anniversary', color:C.rose,     eventType:'ours' },
+    { emoji:'🎂', label:'Birthday',    prefix:'🎂 Birthday',    color:C.peach,    eventType:'mine' },
+    { emoji:'✈️', label:'Trip',        prefix:'✈️ Trip',        color:C.mint,     eventType:'ours' },
+    { emoji:'🏆', label:'Milestone',   prefix:'🏆 Milestone',   color:C.lavender, eventType:'ours' },
+    { emoji:'🎓', label:'Graduation',  prefix:'🎓 Graduation',  color:C.gold,     eventType:'mine' },
+    { emoji:'🌟', label:'Special day', prefix:'🌟 Special day', color:C.peach,    eventType:'ours' },
+  ]
+  const [addForm,  setAddForm]  = useState({ title:'', date:'', startTime:'', endTime:'', isPrivate:false, recurring:'none', recurUntil:'', eventType:'mine', location:null, notes:'', specialType:null })
   const [conflict, setConflict] = useState(null)
   const [saving,   setSaving]   = useState(false)
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [editForm, setEditForm] = useState(null)
   // ── Date-attached stickers (synced to Supabase, shared with partner) ──────
-  const [calStickers, setCalStickers] = useState([])   // [{ id, date, type, value, x, y, size }]
+  const [calStickers,  setCalStickers]  = useState([])
+  const [birthdays,    setBirthdays]    = useState({ my: null, partner: null })
+
+  // Load both users' birthdays from profile extras
+  useEffect(() => {
+    async function loadBirthdays() {
+      if (!user?.id) return
+      const ids = [user.id, ...(partner?.id ? [partner.id] : [])]
+      const { data } = await supabase.from('profiles').select('id, extras').in('id', ids)
+      const map = {}
+      data?.forEach(p => { if (p.extras?.birthday) map[p.id] = p.extras.birthday })
+      setBirthdays({ my: map[user.id] || null, partner: partner?.id ? (map[partner.id] || null) : null })
+    }
+    loadBirthdays()
+  }, [user?.id, partner?.id])   // [{ id, date, type, value, x, y, size }]
   const [stickerMode, setStickerMode] = useState(false)          // true = sticker edit mode active
   const [stickerTargetDate, setStickerTargetDate] = useState(null) // which date cell tray is open on
   const [stickerTrayRect, setStickerTrayRect] = useState(null)    // bounding rect of the tapped cell
@@ -623,37 +646,36 @@ export default function CalendarPage() {
     const todayStr = toDateStr(today)
     const items = []
 
-    // Birthdays from profiles
-    const addBirthday = (name, birthday, color, emoji) => {
+    // Helper: add a birthday as a countdown
+    function addBirthday(name, birthday, color) {
       if (!birthday) return
       const [,m,d] = birthday.split('-').map(Number)
-      // This year's birthday
       let next = new Date(today.getFullYear(), m-1, d)
       if (next < today) next = new Date(today.getFullYear()+1, m-1, d)
       const days = Math.round((next - today) / 86400000)
-      if (days <= 60) items.push({ label: `${emoji} ${name}'s birthday`, days, color, date: toDateStr(next) })
+      if (days <= 60) items.push({ label: `🎂 ${name}'s birthday`, days, color, date: toDateStr(next) })
     }
 
-    // Get birthday from profile extras (loaded via AuthContext)
-    const myExtras   = null  // extras loaded separately in ProfilePage; use events for now
-    const _ = myExtras
+    // Birthdays from profile extras
+    addBirthday(user?.name || 'Your', birthdays.my, C.mint)
+    addBirthday(partner?.name || 'Partner', birthdays.partner, C.rose)
 
-    // Anniversary / birthday / milestone events
-    const keywords = /anniversary|birthday|bday|wedding|graduation|vacation|trip/i
+    // Special / milestone events from calendar (tagged with prefix)
+    const keywords = /^(🎉|💍|🎂|✈️|🏆|🎓|💕|🌟)/
+    const titleKeywords = /anniversary|birthday|bday|wedding|graduation|vacation|trip|milestone/i
     const seen = new Set()
     events.forEach(ev => {
       if (seen.has(ev.id)) return
-      if (!keywords.test(ev.title)) return
       if (ev.date <= todayStr) return
+      if (!keywords.test(ev.title) && !titleKeywords.test(ev.title)) return
       seen.add(ev.id)
       const days = Math.round((new Date(ev.date+'T00:00').getTime() - today.getTime()) / 86400000)
-      if (days > 90) return
-      const color = eventColor(ev)
-      items.push({ label: ev.title.replace(/^💑\s?/,''), days, color, date: ev.date })
+      if (days > 365) return   // only show within 1 year
+      items.push({ label: ev.title.replace(/^💑\s?/,''), days, color: eventColor(ev), date: ev.date })
     })
 
     return items.sort((a,b) => a.days - b.days).slice(0, 8)
-  }, [events, toDateStr(new Date())])
+  }, [events, birthdays, user?.name, partner?.name])
 
   const [confirmDelete, setConfirmDelete] = useState(null) // eventId pending quick-delete confirm
   const [seriesDeleteModal, setSeriesDeleteModal] = useState(null) // event with series_id pending delete choice
@@ -829,7 +851,7 @@ export default function CalendarPage() {
         })
       }
       const count = getRecurringDates(addForm.date, addForm.recurring, addForm.recurUntil).length
-      setAddForm({title:'',date:'',startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:'',eventType:'mine',location:null,notes:''})
+      setAddForm({title:'',date:'',startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:'',eventType:'mine',location:null,notes:'',specialType:null})
       setConflict(null)
       setShowAddModal(false)
       showToast(count > 1 ? `✿ ${count} events added!` : '✿ Event added successfully!', 'success')
@@ -953,7 +975,7 @@ export default function CalendarPage() {
             </div>
           )}
         </div>
-
+        
         {/* ── Not linked banner ── */}
         {!isLinked && (
           <div style={{background:C.mint+'14',borderTop:`1px solid ${C.mint}28`,padding:'7px 16px',fontSize:12,color:C.mint,display:'flex',alignItems:'center',gap:10}}>
@@ -1054,7 +1076,7 @@ export default function CalendarPage() {
             }}>🎀{!isMobile && (stickerMode ? ' Done' : ' Stickers')}</button>
           )}
 
-          <button onClick={()=>{setAddForm({title:'',date:toDateStr(new Date()),startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:'',eventType:'mine',location:null,notes:''});setShowAddModal(true)}} style={{
+          <button onClick={()=>{setAddForm({title:'',date:toDateStr(new Date()),startTime:'',endTime:'',isPrivate:false,recurring:'none',recurUntil:'',eventType:'mine',location:null,notes:'',specialType:null});setShowAddModal(true)}} style={{
             background:C.peach, color:'#fff', border:'none', borderRadius:20,
             padding: isMobile ? '5px 12px' : '5px 16px',
             fontSize:isMobile?16:13, fontWeight:700, cursor:'pointer',
@@ -1125,7 +1147,7 @@ export default function CalendarPage() {
                           if (!inMonth) return
                           if (stickerMode) { e.stopPropagation(); selectStickerTarget(ds, e.currentTarget); return }
                           // Tapping cell body opens add-event pre-filled with this date
-                          setAddForm(f=>({...f, date:ds, startTime:'', endTime:'', title:'', recurring:'none', recurUntil:'', location:null, notes:'', isPrivate:false, eventType:'mine'}))
+                          setAddForm(f=>({...f, date:ds, startTime:'', endTime:'', title:'', recurring:'none', recurUntil:'', location:null, notes:'', isPrivate:false, eventType:'mine', specialType:null}))
                           setShowAddModal(true)
                         }}
                         style={{
@@ -1219,7 +1241,7 @@ export default function CalendarPage() {
                       onClick={e=>{
                         if (stickerMode) { e.stopPropagation(); selectStickerTarget(ds, e.currentTarget); return }
                         // Body tap → add event pre-filled with this date
-                        setAddForm(f=>({...f, date:ds, startTime:'', endTime:'', title:'', recurring:'none', recurUntil:'', location:null, notes:'', isPrivate:false, eventType:'mine'}))
+                        setAddForm(f=>({...f, date:ds, startTime:'', endTime:'', title:'', recurring:'none', recurUntil:'', location:null, notes:'', isPrivate:false, eventType:'mine', specialType:null}))
                         setShowAddModal(true)
                       }}
                       style={{
@@ -1492,6 +1514,8 @@ export default function CalendarPage() {
           </div>
         )}
 
+
+
         {/* ════ ADD EVENT MODAL ════ */}
         {showAddModal && (
           <div onClick={()=>setShowAddModal(false)} style={{
@@ -1532,19 +1556,45 @@ export default function CalendarPage() {
               </div>
               {/* ── Scrollable form body ── */}
               <div style={{overflowY:'auto',flex:1,padding: isMobile ? '20px 22px' : '22px 28px',WebkitOverflowScrolling:'touch',scrollbarWidth:'none'}}>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:18}}>
-                {[['mine','🌿','Just me',C.mint],['ours','💕','For us',C.lavender]].map(([type,emoji,label,color])=>(
-                  <button key={type} onClick={()=>setAddForm(f=>({...f,eventType:type,isPrivate:false}))} style={{
-                    background: addForm.eventType===type ? color+'22' : C.bg,
-                    border:`1.5px solid ${addForm.eventType===type ? color : C.border}`,
-                    color: addForm.eventType===type ? color : C.textDim,
-                    borderRadius:12, padding:'10px 8px', cursor:'pointer', textAlign:'center', transition:'all 0.2s',
+              {/* Event type tabs: Just me / For us / Special */}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:14}}>
+                {[['mine','🌿','Just me',C.mint],['ours','💕','For us',C.lavender],['special','🎉','Special',C.gold]].map(([type,emoji,label,color])=>(
+                  <button key={type} onClick={()=>{
+                    if(type==='special') setAddForm(f=>({...f,specialType:f.specialType??'pick',eventType:'ours',isPrivate:false}))
+                    else setAddForm(f=>({...f,eventType:type,specialType:null,isPrivate:false,title:f.specialType?'':f.title}))
+                  }} style={{
+                    background: (type==='special'?addForm.specialType!=null:addForm.eventType===type&&addForm.specialType==null) ? color+'22' : C.bg,
+                    border:`1.5px solid ${(type==='special'?addForm.specialType!=null:addForm.eventType===type&&addForm.specialType==null) ? color : C.border}`,
+                    color: (type==='special'?addForm.specialType!=null:addForm.eventType===type&&addForm.specialType==null) ? color : C.textDim,
+                    borderRadius:12, padding:'9px 6px', cursor:'pointer', textAlign:'center', transition:'all 0.2s',
                   }}>
-                    <div style={{fontSize:18,marginBottom:3}}>{emoji}</div>
-                    <div style={{fontSize:12,fontWeight:700}}>{label}</div>
+                    <div style={{fontSize:17,marginBottom:2}}>{emoji}</div>
+                    <div style={{fontSize:11,fontWeight:700}}>{label}</div>
                   </button>
                 ))}
               </div>
+
+              {/* Special preset grid — shown when Special tab is active */}
+              {(addForm.specialType != null || SPECIAL_PRESETS.some(p=>addForm.title.startsWith(p.emoji))) ? (
+                <div style={{marginBottom:14}}>
+                  <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:7,fontWeight:700}}>🎉 Event type</label>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:6}}>
+                    {SPECIAL_PRESETS.map(p=>{
+                      const isActive = addForm.title.startsWith(p.emoji)
+                      return (
+                        <button key={p.emoji} onClick={()=>setAddForm(f=>({...f,title:p.prefix+' ',eventType:p.eventType,specialType:p.emoji,startTime:f.startTime||'00:00',endTime:f.endTime||'23:59'}))} style={{
+                          background:isActive?p.color+'22':C.bg,
+                          border:`1.5px solid ${isActive?p.color+'88':C.border}`,
+                          borderRadius:10,padding:'8px 4px',cursor:'pointer',textAlign:'center',transition:'all 0.12s',
+                        }}>
+                          <div style={{fontSize:18,marginBottom:2}}>{p.emoji}</div>
+                          <div style={{fontSize:10,fontWeight:700,color:isActive?p.color:C.textDim}}>{p.label}</div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : null}
               <div style={{marginBottom:13}}>
                 <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:5,fontWeight:700}}>Title</label>
                 <input autoFocus type="text" placeholder={addForm.eventType==='ours'?'e.g. Dinner date 🍽️':'e.g. Gym session 🏃'} value={addForm.title} onChange={e=>setAddForm(f=>({...f,title:e.target.value}))} style={inp}/>
