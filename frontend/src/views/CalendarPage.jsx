@@ -923,15 +923,7 @@ export default function CalendarPage() {
           {/* Desktop: sign out + unlink (minimal — shell handles navigation) */}
           {!isMobile && (
             <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0,position:'relative'}}>
-              <button onClick={toggleTheme} style={{
-                display:'flex',alignItems:'center',gap:5,
-                background:C.surface,border:`1px solid ${C.border}`,
-                borderRadius:20,padding:'5px 10px',cursor:'pointer',
-                fontSize:11,fontWeight:700,color:C.textMid,fontFamily:'inherit',
-              }}>
-                <span>{mode==='light'?'🌙':'☀️'}</span>
-                <span>{mode==='light'?'Dark':'Light'}</span>
-              </button>
+
               <button onClick={()=>setMenuOpen(m=>!m)} style={{
                 display:'flex',alignItems:'center',gap:6,
                 background: menuOpen?C.lavender+'22':C.surface,
@@ -960,6 +952,8 @@ export default function CalendarPage() {
               )}
             </div>
           )}
+        </div>
+
         {/* ── Not linked banner ── */}
         {!isLinked && (
           <div style={{background:C.mint+'14',borderTop:`1px solid ${C.mint}28`,padding:'7px 16px',fontSize:12,color:C.mint,display:'flex',alignItems:'center',gap:10}}>
@@ -1008,7 +1002,6 @@ export default function CalendarPage() {
             </div>
           </div>
         )}
-        </div>
 
         {/* ── Row 2: View toggle + tabs ── */}
         <div style={{
@@ -1498,8 +1491,6 @@ export default function CalendarPage() {
             />
           </div>
         )}
-
-
 
         {/* ════ ADD EVENT MODAL ════ */}
         {showAddModal && (
