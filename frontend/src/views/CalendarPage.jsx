@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { useCalendar } from '../hooks/useCalendar'
@@ -559,9 +559,12 @@ export default function CalendarPage() {
   // ── Date-attached stickers (synced to Supabase, shared with partner) ──────
   const [calStickers,  setCalStickers]  = useState([])
   const [birthdays,    setBirthdays]    = useState({ my: null, partner: null })
+  const [stickerMode, setStickerMode] = useState(false)
+  const [stickerTargetDate, setStickerTargetDate] = useState(null)
+  const [stickerTrayRect, setStickerTrayRect] = useState(null)
 
   // Load both users' birthdays from profile extras
-  useEffect(() => {
+  React.useEffect(() => {
     async function loadBirthdays() {
       if (!user?.id) return
       const ids = [user.id, ...(partner?.id ? [partner.id] : [])]
@@ -571,10 +574,7 @@ export default function CalendarPage() {
       setBirthdays({ my: map[user.id] || null, partner: partner?.id ? (map[partner.id] || null) : null })
     }
     loadBirthdays()
-  }, [user?.id, partner?.id])   // [{ id, date, type, value, x, y, size }]
-  const [stickerMode, setStickerMode] = useState(false)          // true = sticker edit mode active
-  const [stickerTargetDate, setStickerTargetDate] = useState(null) // which date cell tray is open on
-  const [stickerTrayRect, setStickerTrayRect] = useState(null)    // bounding rect of the tapped cell
+  }, [user?.id, partner?.id])
 
   function enterStickerMode()  { setStickerMode(true); setStickerTargetDate(null); setStickerTrayRect(null) }
   function exitStickerMode()   { setStickerMode(false); setStickerTargetDate(null); setStickerTrayRect(null) }
@@ -640,7 +640,16 @@ export default function CalendarPage() {
     setCalStickers(prev => prev.filter(s => s.id !== id))
     if (partnershipId) await deleteRemoteSticker(id)
   }
-  // ── Countdown tiles ──────────────────────────────────────────────────────
+
+  // ── Remaining state (must be before any useMemo/useEffect) ───────────────
+  const [confirmDelete,    setConfirmDelete]    = useState(null)
+  const [seriesDeleteModal,setSeriesDeleteModal] = useState(null)
+  const [menuOpen,         setMenuOpen]         = useState(false)
+  const [showAddModal,     setShowAddModal]      = useState(false)
+  const [toast,            setToast]            = useState(null)
+  const [isMobile,         setIsMobile]         = useState(window.innerWidth < 640)
+
+  // Countdown tiles (useMemo after all useState)
   const countdowns = React.useMemo(() => {
     const today = new Date(); today.setHours(0,0,0,0)
     const todayStr = toDateStr(today)
@@ -680,19 +689,11 @@ export default function CalendarPage() {
     return items.sort((a,b) => a.days - b.days).slice(0, 8)
   }, [events, birthdays, user?.name, user?.id, partner?.name, C.mint, C.rose, C.lavender])
 
-  const [confirmDelete, setConfirmDelete] = useState(null) // eventId pending quick-delete confirm
-  const [seriesDeleteModal, setSeriesDeleteModal] = useState(null) // event with series_id pending delete choice
-  const [menuOpen, setMenuOpen] = useState(false) // mobile hamburger menu
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [toast, setToast] = useState(null) // {msg, type: 'success'|'error'}
-
   function showToast(msg, type='success') {
     setToast({msg, type})
     setTimeout(() => setToast(null), 3500)
   }
 
-  // Responsive: detect mobile
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 640)
   React.useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 640)
     window.addEventListener('resize', handler)
@@ -977,7 +978,7 @@ export default function CalendarPage() {
               )}
             </div>
           )}
-        </div>
+          </div>
         {/* ── Not linked banner ── */}
         {!isLinked && (
           <div style={{background:C.mint+'14',borderTop:`1px solid ${C.mint}28`,padding:'7px 16px',fontSize:12,color:C.mint,display:'flex',alignItems:'center',gap:10}}>
@@ -1791,7 +1792,8 @@ export default function CalendarPage() {
                 )}
                 </div>{/* end detail rows */}
                 </div>{/* end scroll body */}
-              </div>          )
+              </div>
+          )
         })()}
 
       {/* ── Series delete modal ── */}
