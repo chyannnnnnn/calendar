@@ -112,7 +112,7 @@ export function AuthProvider({ children }) {
     if (error || !found) throw new Error('No account found with that email. Make sure your partner has signed up first.')
     if (found.id === myId) throw new Error("That's your own email!")
 
-    // 2. Check YOU are not already in a partnership
+    // 2. Check YOU are not already in ANY partnership (either column)
     const { data: myExisting } = await supabase
       .from('partnerships')
       .select('id')
@@ -121,23 +121,28 @@ export function AuthProvider({ children }) {
 
     if (myExisting) throw new Error('You are already linked with a partner. Unlink first.')
 
-    // 3. Check the PARTNER is not already in a partnership
+    // 3. Check the PARTNER is not already in ANY partnership (either column)
     const { data: theirExisting } = await supabase
       .from('partnerships')
       .select('id')
       .or(`user_a.eq.${found.id},user_b.eq.${found.id}`)
       .maybeSingle()
 
-    if (theirExisting) throw new Error('That person is already linked with someone else.')
+    if (theirExisting) throw new Error(`${found.display_name || 'That person'} is already linked with someone else.`)
 
-    // 4. Create partnership — DB unique constraints enforce one-per-user at DB level too
+    // 4. Insert — DB trigger will also enforce one-per-user as a safety net
     const { error: insertError } = await supabase
       .from('partnerships')
       .insert({ user_a: myId, user_b: found.id })
 
     if (insertError) {
-      // 409 / unique violation = race condition, one of us just linked to someone else
-      if (insertError.code === '23505') throw new Error('Could not link — one of you just connected with someone else.')
+      // Trigger raised exception or race condition
+      if (insertError.code === 'P0001' || insertError.message?.includes('already in a partnership')) {
+        throw new Error('Could not link — one of you is already connected with someone else.')
+      }
+      if (insertError.code === '23505') {
+        throw new Error('Could not link — one of you is already connected with someone else.')
+      }
       throw new Error('Failed to link. Please try again.')
     }
 

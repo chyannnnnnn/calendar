@@ -219,31 +219,48 @@ alter table events  add column if not exists location_lat double precision;
 alter table events  add column if not exists series_id    uuid;
 
 -- Enforce one-partnership-per-user on existing tables
--- (safe to re-run — DO blocks swallow duplicate constraint errors)
+-- Uses a trigger-based approach since column-level unique(user_a) / unique(user_b)
+-- cannot prevent user A appearing as user_a in one row and user_b in another row.
 do $$
 begin
-  -- First delete any orphan/duplicate partnerships (keep the most recent one per user)
-  delete from partnerships p1
-  using partnerships p2
-  where p1.user_a = p2.user_a and p1.id < p2.id;
-
-  delete from partnerships p1
-  using partnerships p2
-  where p1.user_b = p2.user_b and p1.id < p2.id;
-
-  -- Now add the unique constraints if they don't exist
-  if not exists (
-    select 1 from pg_constraint where conname = 'partnerships_user_a_key'
-  ) then
-    alter table partnerships add constraint partnerships_user_a_key unique (user_a);
+  -- Drop old insufficient column-level constraints if they exist
+  if exists (select 1 from pg_constraint where conname = 'partnerships_user_a_key') then
+    alter table partnerships drop constraint partnerships_user_a_key;
   end if;
-
-  if not exists (
-    select 1 from pg_constraint where conname = 'partnerships_user_b_key'
-  ) then
-    alter table partnerships add constraint partnerships_user_b_key unique (user_b);
+  if exists (select 1 from pg_constraint where conname = 'partnerships_user_b_key') then
+    alter table partnerships drop constraint partnerships_user_b_key;
   end if;
 end $$;
+
+-- Create or replace a trigger function that blocks any insert/update where
+-- either user is already in ANY partnership row (in any column)
+create or replace function check_one_partnership_per_user()
+returns trigger language plpgsql as $$
+begin
+  -- Check if NEW.user_a is already in a partnership
+  if exists (
+    select 1 from partnerships
+    where id != coalesce(NEW.id, '00000000-0000-0000-0000-000000000000'::uuid)
+      and (user_a = NEW.user_a or user_b = NEW.user_a)
+  ) then
+    raise exception 'User % is already in a partnership', NEW.user_a;
+  end if;
+  -- Check if NEW.user_b is already in a partnership
+  if exists (
+    select 1 from partnerships
+    where id != coalesce(NEW.id, '00000000-0000-0000-0000-000000000000'::uuid)
+      and (user_a = NEW.user_b or user_b = NEW.user_b)
+  ) then
+    raise exception 'User % is already in a partnership', NEW.user_b;
+  end if;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists enforce_one_partnership_per_user on partnerships;
+create trigger enforce_one_partnership_per_user
+  before insert or update on partnerships
+  for each row execute function check_one_partnership_per_user();
 create index if not exists events_series_id   on events(series_id) where series_id is not null;
 create index if not exists diary_partnership  on diary_entries(partnership_id, date desc);
 create index if not exists diary_author       on diary_entries(author_id);
