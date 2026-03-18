@@ -675,7 +675,7 @@ export default function CalendarPage() {
     })
 
     return items.sort((a,b) => a.days - b.days).slice(0, 8)
-  }, [events, birthdays, user?.name, partner?.name])
+  }, [events, birthdays, user?.name, partner?.name])  // todayStr is stable per session
 
   const [confirmDelete, setConfirmDelete] = useState(null) // eventId pending quick-delete confirm
   const [seriesDeleteModal, setSeriesDeleteModal] = useState(null) // event with series_id pending delete choice
@@ -690,11 +690,11 @@ export default function CalendarPage() {
 
   // Responsive: detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640)
-  useState(() => {
+  React.useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 640)
     window.addEventListener('resize', handler)
     return () => window.removeEventListener('resize', handler)
-  })
+  }, [])
 
   const weekDates  = getWeekDates(navDate)
   const monthDates = getMonthDates(navDate)
@@ -974,8 +974,7 @@ export default function CalendarPage() {
               )}
             </div>
           )}
-        </div>
-        
+          </div>
         {/* ── Not linked banner ── */}
         {!isLinked && (
           <div style={{background:C.mint+'14',borderTop:`1px solid ${C.mint}28`,padding:'7px 16px',fontSize:12,color:C.mint,display:'flex',alignItems:'center',gap:10}}>
