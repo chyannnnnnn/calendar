@@ -9,7 +9,6 @@ const NAV_ITEMS = [
   { path:'/diary',   label:'Diary',    icon:'📖' },
   { path:'/board',   label:'Board',    icon:'🪵' },
   { path:'/bucket',  label:'Bucket',   icon:'🪣' },
-  { path:'/partner', label:'Partner',  icon:'🌷' },
 ]
 
 // Hidden on these paths
@@ -94,16 +93,12 @@ export default function AppShell({ children }) {
                     width: 24, height: 2, borderRadius: 2, background: C.peach,
                   }}/>
                 )}
-                {/* Partner tab shows partner avatar */}
-                {item.path === '/partner' && partner?.avatarUrl
-                  ? <Avatar src={partner.avatarUrl} name={partner.name} size={24} color={C.rose} border={active ? C.peach : C.border}/>
-                  : <span style={{
-                      fontSize: 20, lineHeight: 1,
-                      filter: active ? 'none' : 'opacity(0.55)',
-                      transform: active ? 'scale(1.1)' : 'scale(1)',
-                      transition: 'all 0.15s',
-                    }}>{item.icon}</span>
-                }
+                <span style={{
+                  fontSize: 20, lineHeight: 1,
+                  filter: active ? 'none' : 'opacity(0.55)',
+                  transform: active ? 'scale(1.1)' : 'scale(1)',
+                  transition: 'all 0.15s',
+                }}>{item.icon}</span>
                 <span style={{
                   fontSize: 9, fontWeight: active ? 800 : 500,
                   color: active ? C.peach : C.textDim,
@@ -114,8 +109,8 @@ export default function AppShell({ children }) {
             )
           })}
 
-          {/* Profile tab — shows avatar, at the end */}
-          <button onClick={() => navigate('/profile?view=mine')} style={{
+          {/* Profile + Partner stacked tab */}
+          <button onClick={() => navigate(isProfileActive ? '/partner' : '/profile')} style={{
             flex: 1, display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center', gap: 2,
             background: 'none', border: 'none', cursor: 'pointer',
@@ -127,17 +122,23 @@ export default function AppShell({ children }) {
                 width: 24, height: 2, borderRadius: 2, background: C.peach,
               }}/>
             )}
-            <Avatar
-              src={user?.avatarUrl} name={user?.name}
-              size={24} color={C.mint}
-              border={isProfileActive ? C.peach : C.border}
-            />
+            {/* Stacked couple avatars */}
+            <div style={{position:'relative', width:28, height:24}}>
+              <Avatar src={user?.avatarUrl} name={user?.name} size={22} color={C.mint}
+                border={isProfileActive ? C.peach : C.border}
+              />
+              {isLinked && partner && (
+                <div style={{position:'absolute', bottom:-2, right:-6}}>
+                  <Avatar src={partner.avatarUrl} name={partner.name} size={16} color={C.rose}/>
+                </div>
+              )}
+            </div>
             <span style={{
               fontSize: 9, fontWeight: isProfileActive ? 800 : 500,
               color: isProfileActive ? C.peach : C.textDim,
               fontFamily: "'Nunito',sans-serif",
               letterSpacing: '0.02em',
-            }}>Me</span>
+            }}>Us</span>
           </button>
         </nav>
       </div>
@@ -210,142 +211,169 @@ export default function AppShell({ children }) {
           })}
         </div>
 
-        {/* ── Bottom user section ── */}
-        <div style={{ padding:'8px', borderTop:`1px solid ${C.border}`, display:'flex', flexDirection:'column', gap:4 }}>
+        {/* ── Bottom: couple card + controls ── */}
+        <div style={{ padding:'8px', borderTop:`1px solid ${C.border}` }}>
 
-          {/* Dark / Light mode toggle */}
-          <button onClick={toggleTheme}
-            title={!sidebarOpen ? (mode==='light'?'Dark mode':'Light mode') : undefined}
-            style={{
-              display:'flex', alignItems:'center',
-              justifyContent: sidebarOpen ? 'flex-start' : 'center',
-              gap: sidebarOpen ? 10 : 0,
-              background:'none', border:`1px solid ${C.border}`,
-              borderRadius:10, padding: sidebarOpen ? '7px 12px' : '7px 0',
-              cursor:'pointer', width:'100%', color:C.textMid,
-              fontFamily:"'Nunito',sans-serif", transition:'all 0.15s',
-            }}
-            onMouseEnter={e=>e.currentTarget.style.background=C.bg}
-            onMouseLeave={e=>e.currentTarget.style.background='none'}
-          >
-            <span style={{fontSize:14}}>{mode==='light'?'🌙':'☀️'}</span>
-            {sidebarOpen && <span style={{fontSize:12, fontWeight:600}}>{mode==='light'?'Dark':'Light'}</span>}
-          </button>
+          {/* Couple card — You ✦ Partner */}
+          <div style={{
+            background:`linear-gradient(135deg,${C.mint}14,${C.rose}14)`,
+            border:`1px solid ${C.border}`,
+            borderRadius:14, padding: sidebarOpen ? '10px 12px' : '8px 0',
+            marginBottom:6, position:'relative',
+            display:'flex', alignItems:'center',
+            justifyContent: sidebarOpen ? 'flex-start' : 'center',
+          }}>
+            {sidebarOpen ? (
+              /* Expanded: You ✦ Partner side by side */
+              <div style={{display:'flex', alignItems:'center', gap:0, width:'100%'}}>
+                {/* You */}
+                <button onClick={()=>navigate('/profile')} style={{
+                  flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4,
+                  background:'none', border:'none', cursor:'pointer', borderRadius:10, padding:'4px 6px',
+                  transition:'background 0.15s',
+                }}
+                  onMouseEnter={e=>e.currentTarget.style.background=C.mint+'18'}
+                  onMouseLeave={e=>e.currentTarget.style.background='none'}
+                >
+                  <Avatar src={user?.avatarUrl} name={user?.name} size={32} color={C.mint}
+                    border={isProfileActive ? C.peach : undefined}
+                  />
+                  <span style={{fontSize:10, fontWeight:700, color:C.mint, maxWidth:60, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                    {user?.name?.split(' ')[0] || 'You'}
+                  </span>
+                </button>
 
-          {/* Partner row — only when linked */}
-          {isLinked && partner && (
-            <button onClick={() => navigate('/partner')}
-              title={!sidebarOpen ? (partner.name+' (partner)') : undefined}
-              style={{
-                display:'flex', alignItems:'center',
-                justifyContent: sidebarOpen ? 'flex-start' : 'center',
-                gap: sidebarOpen ? 10 : 0,
-                background: C.rose+'10', border:`1px solid ${C.rose}33`,
-                borderRadius:10, padding: sidebarOpen ? '7px 10px' : '7px 0',
-                cursor:'pointer', width:'100%',
-                fontFamily:"'Nunito',sans-serif", transition:'all 0.15s',
-              }}
-              onMouseEnter={e=>e.currentTarget.style.background=C.rose+'1e'}
-              onMouseLeave={e=>e.currentTarget.style.background=C.rose+'10'}
-            >
-              <Avatar src={partner.avatarUrl} name={partner.name} size={22} color={C.rose}/>
-              {sidebarOpen && (
-                <div style={{minWidth:0, flex:1}}>
-                  <div style={{fontSize:11, fontWeight:700, color:C.rose, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{partner.name}</div>
-                  <div style={{fontSize:9, color:C.textDim}}>Partner ✦</div>
+                {/* Divider ✦ */}
+                <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:2, flexShrink:0, padding:'0 4px'}}>
+                  <div style={{width:1, height:14, background:C.border}}/>
+                  <span style={{fontSize:10, color:C.textDim, fontWeight:800}}>✦</span>
+                  <div style={{width:1, height:14, background:C.border}}/>
                 </div>
-              )}
-            </button>
-          )}
 
-          {/* User / Profile row — with popup menu for sign out */}
-          <div style={{position:'relative'}}>
-            <button onClick={() => setUserMenuOpen(o=>!o)}
-              title={!sidebarOpen ? (user?.name||'Profile') : undefined}
-              style={{
-                display:'flex', alignItems:'center',
-                justifyContent: sidebarOpen ? 'flex-start' : 'center',
-                gap: sidebarOpen ? 10 : 0,
-                background: (isProfileActive||userMenuOpen) ? C.peach+'18' : 'none',
-                border:`1.5px solid ${(isProfileActive||userMenuOpen) ? C.peach+'55' : 'transparent'}`,
-                borderRadius:10, padding: sidebarOpen ? '7px 10px' : '7px 0',
-                cursor:'pointer', width:'100%',
-                fontFamily:"'Nunito',sans-serif", transition:'all 0.15s',
-              }}
-              onMouseEnter={e=>{ if(!isProfileActive&&!userMenuOpen) e.currentTarget.style.background=C.bg }}
-              onMouseLeave={e=>{ if(!isProfileActive&&!userMenuOpen) e.currentTarget.style.background='none' }}
-            >
-              <Avatar src={user?.avatarUrl} name={user?.name} size={24} color={C.mint}
-                border={(isProfileActive||userMenuOpen) ? C.peach : undefined}
-              />
-              {sidebarOpen && (
-                <>
-                  <div style={{minWidth:0, flex:1, textAlign:'left'}}>
-                    <div style={{fontSize:12, fontWeight:700, color:C.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{user?.name||'You'}</div>
-                    <div style={{fontSize:9, color:C.textDim, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{user?.email||''}</div>
-                  </div>
-                  <span style={{fontSize:10, color:C.textDim, flexShrink:0}}>{userMenuOpen?'▼':'▲'}</span>
-                </>
-              )}
-            </button>
-
-            {/* User popup menu — floats above */}
-            {userMenuOpen && (
-              <>
-                <div onClick={()=>setUserMenuOpen(false)} style={{position:'fixed',inset:0,zIndex:99}}/>
-                <div style={{
-                  position:'absolute', bottom:'calc(100% + 6px)',
-                  left:0, right:0, zIndex:100,
-                  background:C.surface, border:`1px solid ${C.border}`,
-                  borderRadius:14, overflow:'hidden',
-                  boxShadow:`0 -8px 32px rgba(0,0,0,0.2)`,
-                }}>
-                  <button onClick={()=>{navigate('/profile?view=mine');setUserMenuOpen(false)}} style={{
-                    width:'100%', display:'flex', alignItems:'center', gap:10,
-                    background:'none', border:'none', padding:'11px 14px',
-                    cursor:'pointer', fontSize:13, color:C.text,
-                    fontFamily:"'Nunito',sans-serif", fontWeight:600, textAlign:'left',
-                    transition:'background 0.1s',
+                {/* Partner */}
+                {isLinked && partner ? (
+                  <button onClick={()=>navigate('/partner')} style={{
+                    flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4,
+                    background:'none', border:'none', cursor:'pointer', borderRadius:10, padding:'4px 6px',
+                    transition:'background 0.15s',
                   }}
-                    onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+                    onMouseEnter={e=>e.currentTarget.style.background=C.rose+'18'}
                     onMouseLeave={e=>e.currentTarget.style.background='none'}
                   >
-                    <span style={{fontSize:15}}>🌿</span> My Profile
+                    <Avatar src={partner.avatarUrl} name={partner.name} size={32} color={C.rose}/>
+                    <span style={{fontSize:10, fontWeight:700, color:C.rose, maxWidth:60, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                      {partner.name?.split(' ')[0] || 'Partner'}
+                    </span>
                   </button>
-                  {isLinked && (
-                    <button onClick={async()=>{if(confirm('Disconnect from '+partner?.name+'?'))await unlinkPartner();setUserMenuOpen(false)}} style={{
-                      width:'100%', display:'flex', alignItems:'center', gap:10,
-                      background:'none', border:'none', padding:'11px 14px',
-                      cursor:'pointer', fontSize:13, color:C.rose,
-                      fontFamily:"'Nunito',sans-serif", fontWeight:600, textAlign:'left',
+                ) : (
+                  <button onClick={()=>navigate('/connect')} style={{
+                    flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4,
+                    background:'none', border:'none', cursor:'pointer', borderRadius:10, padding:'4px 6px',
+                  }}>
+                    <div style={{width:32,height:32,borderRadius:'50%',border:`2px dashed ${C.border}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,color:C.textDim}}>＋</div>
+                    <span style={{fontSize:10, fontWeight:600, color:C.textDim}}>Connect</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              /* Collapsed: stacked avatars */
+              <button onClick={()=>navigate('/profile')} title={user?.name} style={{
+                background:'none', border:'none', cursor:'pointer', position:'relative', padding:0,
+              }}>
+                <Avatar src={user?.avatarUrl} name={user?.name} size={28} color={C.mint}/>
+                {isLinked && partner && (
+                  <div style={{position:'absolute', bottom:-4, right:-4}}>
+                    <Avatar src={partner.avatarUrl} name={partner.name} size={18} color={C.rose}/>
+                  </div>
+                )}
+              </button>
+            )}
+          </div>
+
+          {/* Controls row: theme toggle + ··· menu */}
+          <div style={{display:'flex', gap:4}}>
+            {/* Theme toggle */}
+            <button onClick={toggleTheme} title={mode==='light'?'Dark mode':'Light mode'}
+              style={{
+                flex: sidebarOpen ? 1 : 1,
+                display:'flex', alignItems:'center', justifyContent:'center',
+                gap: sidebarOpen ? 6 : 0,
+                background:'none', border:`1px solid ${C.border}`,
+                borderRadius:10, padding:'7px 8px',
+                cursor:'pointer', color:C.textMid,
+                fontFamily:"'Nunito',sans-serif", transition:'background 0.15s',
+                whiteSpace:'nowrap', overflow:'hidden',
+              }}
+              onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+              onMouseLeave={e=>e.currentTarget.style.background='none'}
+            >
+              <span style={{fontSize:13}}>{mode==='light'?'🌙':'☀️'}</span>
+              {sidebarOpen && <span style={{fontSize:11,fontWeight:600}}>{mode==='light'?'Dark':'Light'}</span>}
+            </button>
+
+            {/* ··· More menu (sign out, disconnect) */}
+            <div style={{position:'relative', flexShrink:0}}>
+              <button onClick={()=>setUserMenuOpen(o=>!o)} title="More options"
+                style={{
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  background: userMenuOpen ? C.bg : 'none', border:`1px solid ${userMenuOpen ? C.borderHi : C.border}`,
+                  borderRadius:10, padding:'7px 10px',
+                  cursor:'pointer', color:C.textMid, fontSize:14,
+                  transition:'all 0.15s',
+                }}
+                onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+                onMouseLeave={e=>{ if(!userMenuOpen) e.currentTarget.style.background='none' }}
+              >···</button>
+
+              {userMenuOpen && (
+                <>
+                  <div onClick={()=>setUserMenuOpen(false)} style={{position:'fixed',inset:0,zIndex:99}}/>
+                  <div style={{
+                    position:'absolute', bottom:'calc(100% + 6px)', right:0, zIndex:100,
+                    background:C.surface, border:`1px solid ${C.border}`,
+                    borderRadius:14, overflow:'hidden', minWidth:160,
+                    boxShadow:`0 -8px 32px rgba(0,0,0,0.18)`,
+                  }}>
+                    <button onClick={()=>{navigate('/profile');setUserMenuOpen(false)}} style={{
+                      width:'100%',display:'flex',alignItems:'center',gap:8,
+                      background:'none',border:'none',padding:'10px 14px',
+                      cursor:'pointer',fontSize:12,color:C.text,
+                      fontFamily:"'Nunito',sans-serif",fontWeight:600,textAlign:'left',
+                    }}
+                      onMouseEnter={e=>e.currentTarget.style.background=C.bg}
+                      onMouseLeave={e=>e.currentTarget.style.background='none'}
+                    ><span>🌿</span> My Profile</button>
+                    {isLinked && (
+                      <button onClick={async()=>{if(confirm('Disconnect from '+partner?.name+'?')){await unlinkPartner()}setUserMenuOpen(false)}} style={{
+                        width:'100%',display:'flex',alignItems:'center',gap:8,
+                        background:'none',border:'none',padding:'10px 14px',
+                        cursor:'pointer',fontSize:12,color:C.rose,
+                        fontFamily:"'Nunito',sans-serif",fontWeight:600,textAlign:'left',
+                        borderTop:`1px solid ${C.border}`,
+                      }}
+                        onMouseEnter={e=>e.currentTarget.style.background=C.rose+'12'}
+                        onMouseLeave={e=>e.currentTarget.style.background='none'}
+                      ><span>💔</span> Disconnect</button>
+                    )}
+                    <button onClick={()=>{signOut();setUserMenuOpen(false)}} style={{
+                      width:'100%',display:'flex',alignItems:'center',gap:8,
+                      background:'none',border:'none',padding:'10px 14px',
+                      cursor:'pointer',fontSize:12,color:C.textMid,
+                      fontFamily:"'Nunito',sans-serif",fontWeight:600,textAlign:'left',
                       borderTop:`1px solid ${C.border}`,
                     }}
-                      onMouseEnter={e=>e.currentTarget.style.background=C.rose+'12'}
+                      onMouseEnter={e=>e.currentTarget.style.background=C.bg}
                       onMouseLeave={e=>e.currentTarget.style.background='none'}
-                    >
-                      <span style={{fontSize:15}}>💔</span> Disconnect
-                    </button>
-                  )}
-                  <button onClick={()=>{signOut();setUserMenuOpen(false)}} style={{
-                    width:'100%', display:'flex', alignItems:'center', gap:10,
-                    background:'none', border:'none', padding:'11px 14px',
-                    cursor:'pointer', fontSize:13, color:C.textMid,
-                    fontFamily:"'Nunito',sans-serif", fontWeight:600, textAlign:'left',
-                    borderTop:`1px solid ${C.border}`,
-                  }}
-                    onMouseEnter={e=>e.currentTarget.style.background=C.bg}
-                    onMouseLeave={e=>e.currentTarget.style.background='none'}
-                  >
-                    <span style={{fontSize:15}}>🚪</span> Sign out
-                  </button>
-                </div>
-              </>
-            )}
+                    ><span>🚪</span> Sign out</button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Page content */}
+            {/* Page content */}
       <div style={{flex:1, overflow:'hidden', display:'flex', flexDirection:'column', minWidth:0}}>
         {children}
       </div>
