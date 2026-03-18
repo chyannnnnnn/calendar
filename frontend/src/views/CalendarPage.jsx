@@ -979,7 +979,6 @@ export default function CalendarPage() {
               )}
             </div>
           )}
-
           </div>
         {/* ── Not linked banner ── */}
         {!isLinked && (
@@ -993,40 +992,79 @@ export default function CalendarPage() {
         {isLinked && countdowns.length > 0 && (
           <div style={{
             borderTop:`1px solid ${C.border}`,
-            padding:'0',
-            background:C.surface,
-            overflowX:'auto',
-            flexShrink:0,
-            display:'flex',
-            scrollbarWidth:'none',
+            background: mode==='dark' ? C.bg : '#FDF6EE',
+            overflowX:'auto', flexShrink:0,
+            scrollbarWidth:'none', padding:'8px 12px',
+            display:'flex', gap:8,
           }}>
-            <div style={{display:'flex',gap:0,padding:'0 12px',alignItems:'stretch'}}>
-              {countdowns.map((c,i) => (
+            {countdowns.map((c,i) => {
+              const isToday   = c.days === 0
+              const isSoon    = c.days <= 7
+              const urgency   = isToday ? 1 : isSoon ? 0.7 : 0.45
+              return (
                 <div key={i} style={{
-                  display:'flex', alignItems:'center', gap:8,
-                  padding:'6px 14px',
-                  borderRight:`1px solid ${C.border}`,
                   flexShrink:0,
+                  background: `linear-gradient(135deg, ${c.color}${isToday?'33':isSoon?'22':'18'}, ${c.color}${isToday?'18':'0d'})`,
+                  border:`1.5px solid ${c.color}${isToday?'88':isSoon?'55':'33'}`,
+                  borderRadius:14,
+                  padding:'7px 12px 7px 10px',
+                  display:'flex', alignItems:'center', gap:9,
+                  boxShadow: isToday ? `0 2px 12px ${c.color}33` : 'none',
+                  transition:'all 0.2s',
+                  cursor:'default',
+                  position:'relative',
+                  overflow:'hidden',
                 }}>
+                  {/* Glow bar on left edge */}
                   <div style={{
-                    width:32,height:32,borderRadius:'50%',
-                    background:c.color+'22',border:`1.5px solid ${c.color}44`,
-                    display:'flex',alignItems:'center',justifyContent:'center',
-                    flexShrink:0,
+                    position:'absolute', left:0, top:0, bottom:0, width:3,
+                    background:`linear-gradient(180deg, ${c.color}88, ${c.color}22)`,
+                    borderRadius:'14px 0 0 14px',
+                  }}/>
+
+                  {/* Days number badge */}
+                  <div style={{
+                    flexShrink:0, textAlign:'center',
+                    minWidth: isToday ? 'auto' : 36,
                   }}>
-                    <span style={{fontSize:14,fontWeight:800,color:c.color}}>
-                      {c.days===0?'🎉':c.days}
-                    </span>
+                    {isToday ? (
+                      <span style={{fontSize:22}}>🎉</span>
+                    ) : (
+                      <>
+                        <div style={{
+                          fontSize: c.days >= 100 ? 15 : 19,
+                          fontWeight:800, color:c.color,
+                          fontFamily:"'Playfair Display'",
+                          lineHeight:1,
+                        }}>{c.days}</div>
+                        <div style={{
+                          fontSize:8, fontWeight:700, color:c.color,
+                          opacity:0.7, textTransform:'uppercase', letterSpacing:'0.06em',
+                        }}>{c.days===1?'day':'days'}</div>
+                      </>
+                    )}
                   </div>
-                  <div>
-                    <div style={{fontSize:11,fontWeight:700,color:C.text,whiteSpace:'nowrap',maxWidth:120,overflow:'hidden',textOverflow:'ellipsis'}}>{c.label}</div>
-                    <div style={{fontSize:10,color:C.textDim}}>
-                      {c.days===0?'Today!':c.days===1?'Tomorrow':`${c.days} days away`}
+
+                  {/* Label + sublabel */}
+                  <div style={{minWidth:0}}>
+                    <div style={{
+                      fontSize:11, fontWeight:700, color:C.text,
+                      whiteSpace:'nowrap', maxWidth:130,
+                      overflow:'hidden', textOverflow:'ellipsis',
+                      lineHeight:1.3,
+                    }}>{c.label}</div>
+                    <div style={{
+                      fontSize:9, fontWeight:600,
+                      color: isToday ? c.color : isSoon ? c.color : C.textDim,
+                      opacity: isToday ? 1 : isSoon ? 0.9 : 0.7,
+                      marginTop:2, whiteSpace:'nowrap',
+                    }}>
+                      {isToday ? '🎊 Today!' : c.days===1 ? '⚡ Tomorrow!' : `${c.date}`}
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              )
+            })}
           </div>
         )}
 
