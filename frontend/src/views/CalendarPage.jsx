@@ -671,11 +671,14 @@ export default function CalendarPage() {
       seen.add(ev.id)
       const days = Math.round((new Date(ev.date+'T00:00').getTime() - today.getTime()) / 86400000)
       if (days > 365) return   // only show within 1 year
-      items.push({ label: ev.title.replace(/^💑\s?/,''), days, color: eventColor(ev), date: ev.date })
+      const evColor = (ev.event_type==='ours'||ev.title?.startsWith('💑'))
+        ? C.lavender
+        : (ev.owner_id === user?.id ? C.mint : C.rose)
+      items.push({ label: ev.title.replace(/^💑\s?/,''), days, color: evColor, date: ev.date })
     })
 
     return items.sort((a,b) => a.days - b.days).slice(0, 8)
-  }, [events, birthdays, user?.name, partner?.name])  // todayStr is stable per session
+  }, [events, birthdays, user?.name, user?.id, partner?.name, C.mint, C.rose, C.lavender])
 
   const [confirmDelete, setConfirmDelete] = useState(null) // eventId pending quick-delete confirm
   const [seriesDeleteModal, setSeriesDeleteModal] = useState(null) // event with series_id pending delete choice
@@ -974,7 +977,7 @@ export default function CalendarPage() {
               )}
             </div>
           )}
-          </div>
+        </div>
         {/* ── Not linked banner ── */}
         {!isLinked && (
           <div style={{background:C.mint+'14',borderTop:`1px solid ${C.mint}28`,padding:'7px 16px',fontSize:12,color:C.mint,display:'flex',alignItems:'center',gap:10}}>
@@ -1788,8 +1791,7 @@ export default function CalendarPage() {
                 )}
                 </div>{/* end detail rows */}
                 </div>{/* end scroll body */}
-              </div>
-          )
+              </div>          )
         })()}
 
       {/* ── Series delete modal ── */}
