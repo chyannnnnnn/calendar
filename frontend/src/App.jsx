@@ -7,6 +7,7 @@ import CalendarPage from './views/CalendarPage'
 import ProfilePage  from './views/ProfilePage'
 import DiaryPage    from './views/DiaryPage'
 import BoardPage    from './views/BoardPage'
+import PartnerPage  from './views/PartnerPage'
 import BucketPage   from './views/BucketPage'
 import AppShell     from './components/AppShell'
 
@@ -33,6 +34,7 @@ export default function App() {
             <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
             <Route path="/diary"   element={<ProtectedRoute><DiaryPage   /></ProtectedRoute>} />
             <Route path="/board"   element={<ProtectedRoute><BoardPage   /></ProtectedRoute>} />
+            <Route path="/partner" element={<ProtectedRoute><PartnerPage /></ProtectedRoute>} />
             <Route path="/bucket"  element={<ProtectedRoute><BucketPage  /></ProtectedRoute>} />
             <Route path="/*"       element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
           </Routes>

@@ -5,10 +5,11 @@ import { useState, useEffect } from 'react'
 
 // Main nav — no Profile here, that lives in the bottom user section
 const NAV_ITEMS = [
-  { path:'/',       label:'Calendar', icon:'🗓' },
-  { path:'/diary',  label:'Diary',    icon:'📖' },
-  { path:'/board',  label:'Board',    icon:'🪵' },
-  { path:'/bucket', label:'Bucket',   icon:'🪣' },
+  { path:'/',        label:'Calendar', icon:'🗓' },
+  { path:'/diary',   label:'Diary',    icon:'📖' },
+  { path:'/board',   label:'Board',    icon:'🪵' },
+  { path:'/bucket',  label:'Bucket',   icon:'🪣' },
+  { path:'/partner', label:'Partner',  icon:'🌷' },
 ]
 
 // Hidden on these paths
@@ -93,12 +94,16 @@ export default function AppShell({ children }) {
                     width: 24, height: 2, borderRadius: 2, background: C.peach,
                   }}/>
                 )}
-                <span style={{
-                  fontSize: 20, lineHeight: 1,
-                  filter: active ? 'none' : 'opacity(0.55)',
-                  transform: active ? 'scale(1.1)' : 'scale(1)',
-                  transition: 'all 0.15s',
-                }}>{item.icon}</span>
+                {/* Partner tab shows partner avatar */}
+                {item.path === '/partner' && partner?.avatarUrl
+                  ? <Avatar src={partner.avatarUrl} name={partner.name} size={24} color={C.rose} border={active ? C.peach : C.border}/>
+                  : <span style={{
+                      fontSize: 20, lineHeight: 1,
+                      filter: active ? 'none' : 'opacity(0.55)',
+                      transform: active ? 'scale(1.1)' : 'scale(1)',
+                      transition: 'all 0.15s',
+                    }}>{item.icon}</span>
+                }
                 <span style={{
                   fontSize: 9, fontWeight: active ? 800 : 500,
                   color: active ? C.peach : C.textDim,
@@ -229,7 +234,7 @@ export default function AppShell({ children }) {
 
           {/* Partner row — only when linked */}
           {isLinked && partner && (
-            <button onClick={() => navigate('/profile?view=partner')}
+            <button onClick={() => navigate('/partner')}
               title={!sidebarOpen ? (partner.name+' (partner)') : undefined}
               style={{
                 display:'flex', alignItems:'center',
