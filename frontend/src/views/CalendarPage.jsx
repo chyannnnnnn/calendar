@@ -883,6 +883,7 @@ export default function CalendarPage() {
       else if (recurring === 'weekly')  current.setDate(current.getDate() + 7)
       else if (recurring === 'biweekly')current.setDate(current.getDate() + 14)
       else if (recurring === 'monthly') current.setMonth(current.getMonth() + 1)
+      else if (recurring === 'yearly')  current.setFullYear(current.getFullYear() + 1)
       else break
     }
     return dates
@@ -978,6 +979,7 @@ export default function CalendarPage() {
               )}
             </div>
           )}
+
           </div>
         {/* ── Not linked banner ── */}
         {!isLinked && (
@@ -1585,7 +1587,15 @@ export default function CalendarPage() {
                     {SPECIAL_PRESETS.map(p=>{
                       const isActive = addForm.title.startsWith(p.emoji)
                       return (
-                        <button key={p.emoji} onClick={()=>setAddForm(f=>({...f,title:p.prefix+' ',eventType:p.eventType,specialType:p.emoji,startTime:f.startTime||'00:00',endTime:f.endTime||'23:59'}))} style={{
+                        <button key={p.emoji} onClick={()=>setAddForm(f=>{
+                          const baseDate = f.date || toDateStr(new Date())
+                          const d = new Date(baseDate)
+                          d.setFullYear(d.getFullYear() + 10)
+                          const recurUntil = d.toISOString().slice(0,10)
+                          return {...f, title:p.prefix+' ', eventType:p.eventType, specialType:p.emoji,
+                            startTime:f.startTime||'00:00', endTime:f.endTime||'23:59',
+                            recurring:'yearly', recurUntil}
+                        })} style={{
                           background:isActive?p.color+'22':C.bg,
                           border:`1.5px solid ${isActive?p.color+'88':C.border}`,
                           borderRadius:10,padding:'8px 4px',cursor:'pointer',textAlign:'center',transition:'all 0.12s',
@@ -1627,23 +1637,69 @@ export default function CalendarPage() {
               <div style={{marginBottom:13}}>
                 <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:6,fontWeight:700}}>Repeat</label>
                 <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
-                  {[['none','Once'],['daily','Daily'],['weekly','Weekly'],['biweekly','2 weeks'],['monthly','Monthly']].map(([val,label])=>(
-                    <button key={val} onClick={()=>setAddForm(f=>({...f,recurring:val}))} style={{
+                  {[['none','Once'],['daily','Daily'],['weekly','Weekly'],['biweekly','2 weeks'],['monthly','Monthly'],['yearly','Every year 🔁']].map(([val,label])=>(
+                    <button key={val} onClick={()=>{
+                      setAddForm(f=>{
+                        // When selecting yearly, auto-set recurUntil to 10 years from event date
+                        const recurUntil = val==='yearly' && f.date
+                          ? (() => { const d=new Date(f.date); d.setFullYear(d.getFullYear()+10); return d.toISOString().slice(0,10) })()
+                          : f.recurUntil
+                        return {...f, recurring:val, recurUntil}
+                      })
+                    }} style={{
                       background: addForm.recurring===val ? C.mint+'22' : C.bg,
                       border:`1px solid ${addForm.recurring===val ? C.mint : C.border}`,
                       color: addForm.recurring===val ? C.mint : C.textDim,
                       borderRadius:20, padding:'5px 12px', fontSize:11, cursor:'pointer',
                       fontWeight:addForm.recurring===val?700:400,
+                      whiteSpace:'nowrap',
                     }}>{label}</button>
                   ))}
                 </div>
               </div>
               {addForm.recurring !== 'none' && (
                 <div style={{marginBottom:13,background:C.bg,borderRadius:10,padding:'10px 14px',border:`1px solid ${C.border}`}}>
-                  <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:6,fontWeight:700}}>Repeat until</label>
-                  <input type="date" value={addForm.recurUntil} onChange={e=>setAddForm(f=>({...f,recurUntil:e.target.value}))} style={{...inp,background:'transparent',border:'none',padding:'0'}}/>
-                  {addForm.date && addForm.recurUntil && (
-                    <div style={{fontSize:10,color:C.mint,marginTop:6,fontWeight:600}}>✿ {getRecurringDates(addForm.date,addForm.recurring,addForm.recurUntil).length} events will be created</div>
+                  {addForm.recurring === 'yearly' ? (
+                    <>
+                      <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:6,fontWeight:700}}>Remind every year until</label>
+                      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:6}}>
+                        {[2,5,10,20].map(yrs=>{
+                          const d=new Date(addForm.date||new Date())
+                          d.setFullYear(d.getFullYear()+yrs)
+                          const val=d.toISOString().slice(0,10)
+                          const isActive=addForm.recurUntil===val
+                          return(
+                            <button key={yrs} onClick={()=>setAddForm(f=>({...f,recurUntil:val}))} style={{
+                              background:isActive?C.mint+'22':C.surface,
+                              border:`1px solid ${isActive?C.mint:C.border}`,
+                              color:isActive?C.mint:C.textDim,
+                              borderRadius:20,padding:'4px 12px',fontSize:11,
+                              fontWeight:isActive?700:400,cursor:'pointer',fontFamily:'inherit',
+                            }}>{yrs} years</button>
+                          )
+                        })}
+                        <button onClick={()=>setAddForm(f=>({...f,recurUntil:''}))} style={{
+                          background:'transparent',border:`1px solid ${C.border}`,
+                          color:C.textDim,borderRadius:20,padding:'4px 12px',fontSize:11,cursor:'pointer',fontFamily:'inherit',
+                        }}>Custom</button>
+                      </div>
+                      {(!addForm.recurUntil || addForm.recurUntil==='') && (
+                        <input type="date" value={addForm.recurUntil} onChange={e=>setAddForm(f=>({...f,recurUntil:e.target.value}))} style={{...inp,background:'transparent',border:'none',padding:'0'}}/>
+                      )}
+                      {addForm.date && addForm.recurUntil && (
+                        <div style={{fontSize:10,color:C.mint,marginTop:4,fontWeight:600}}>
+                          🔁 {getRecurringDates(addForm.date,'yearly',addForm.recurUntil).length} annual reminders will be created
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <label style={{fontSize:10,color:C.textMid,textTransform:'uppercase',letterSpacing:'0.07em',display:'block',marginBottom:6,fontWeight:700}}>Repeat until</label>
+                      <input type="date" value={addForm.recurUntil} onChange={e=>setAddForm(f=>({...f,recurUntil:e.target.value}))} style={{...inp,background:'transparent',border:'none',padding:'0'}}/>
+                      {addForm.date && addForm.recurUntil && (
+                        <div style={{fontSize:10,color:C.mint,marginTop:6,fontWeight:600}}>✿ {getRecurringDates(addForm.date,addForm.recurring,addForm.recurUntil).length} events will be created</div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
