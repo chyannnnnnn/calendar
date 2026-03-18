@@ -128,22 +128,10 @@ export default function ProfilePage() {
       <style>{`*{box-sizing:border-box;-webkit-font-smoothing:antialiased} textarea{resize:vertical}`}</style>
 
       {/* ── Header ── */}
-      <header style={{padding:'16px 20px', display:'flex', alignItems:'center', gap:12, borderBottom:`1px solid ${C.border}`, background:C.surface, position:'sticky', top:0, zIndex:10}}>
-        <button onClick={()=>navigate('/')} style={{background:'none', border:`1px solid ${C.border}`, color:C.textMid, borderRadius:10, padding:'6px 12px', fontSize:13, cursor:'pointer', fontFamily:'inherit', fontWeight:600}}>
-          ← Calendar
-        </button>
-        <div style={{fontFamily:"'Playfair Display'", fontSize:20, color:C.text, flex:1}}>
-          us<span style={{color:C.peach}}>.</span>cal
+      <header style={{padding:'12px 20px', display:'flex', alignItems:'center', justifyContent:'center', borderBottom:`1px solid ${C.border}`, background:C.surface, position:'sticky', top:0, zIndex:10}}>
+        <div style={{fontFamily:"'Playfair Display'", fontSize:20, color:C.text}}>
+          Profile
         </div>
-        <button onClick={toggleTheme} style={{
-          display:'flex',alignItems:'center',gap:6,
-          background:C.surface,border:`1px solid ${C.border}`,
-          borderRadius:20,padding:'6px 14px',cursor:'pointer',
-          fontSize:13,fontWeight:700,color:C.textMid,fontFamily:'inherit',
-        }}>
-          <span style={{fontSize:15}}>{mode==='light'?'🌙':'☀️'}</span>
-          <span>{mode==='light'?'Dark':'Light'}</span>
-        </button>
       </header>
 
       {/* ── Profile switcher tabs ── */}

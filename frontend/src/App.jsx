@@ -8,6 +8,7 @@ import ProfilePage  from './views/ProfilePage'
 import DiaryPage    from './views/DiaryPage'
 import BoardPage    from './views/BoardPage'
 import BucketPage   from './views/BucketPage'
+import AppShell     from './components/AppShell'
 
 function ProtectedRoute({ children }) {
   const { session, isLoading } = useAuth()
@@ -18,7 +19,7 @@ function ProtectedRoute({ children }) {
     </div>
   )
   if (!session) return <Navigate to="/login" replace />
-  return children
+  return <AppShell>{children}</AppShell>
 }
 
 export default function App() {

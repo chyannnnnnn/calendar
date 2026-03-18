@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { useTheme } from '../lib/ThemeContext'
 import { supabase } from '../lib/supabase'
@@ -12,8 +11,7 @@ function rand(min, max) { return Math.random() * (max - min) + min }
 
 export default function BoardPage() {
   const { user, partner, partnershipId, isLinked } = useAuth()
-  const { C, mode, toggle: toggleTheme } = useTheme()
-  const navigate = useNavigate()
+  const { C, mode } = useTheme()
   const boardRef = useRef(null)
   const fileRef  = useRef(null)
   const dragRef  = useRef(null) // { id, startX, startY, origX, origY, rectW, rectH }
@@ -161,7 +159,7 @@ export default function BoardPage() {
     : '#F5EDD8'
 
   return (
-    <div style={{ height:'100dvh', display:'flex', flexDirection:'column', background:C.bg, fontFamily:"'Nunito',sans-serif", color:C.text, overflow:'hidden' }}>
+    <div style={{ height:'100dvh', display:'flex', flexDirection:'column', background:C.bg, fontFamily:"'Nunito',sans-serif", color:C.text, overflow:'hidden', paddingLeft:'var(--nav-w,0px)', paddingBottom:'var(--nav-h,0px)' }}>
       <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Caveat:wght@400;600;700&display=swap" rel="stylesheet"/>
       <style>{`
         *{box-sizing:border-box;-webkit-font-smoothing:antialiased}
@@ -171,11 +169,9 @@ export default function BoardPage() {
 
       {/* ── Header ── */}
       <header style={{ flexShrink:0, height:52, padding:'0 16px', display:'flex', alignItems:'center', gap:10, borderBottom:`1px solid ${C.border}`, background:C.surface, zIndex:10 }}>
-        <button onClick={()=>navigate('/')} style={{ background:'none', border:`1px solid ${C.border}`, color:C.textMid, borderRadius:10, padding:'5px 11px', fontSize:12, cursor:'pointer', fontFamily:'inherit', fontWeight:700 }}>← Calendar</button>
-        <div style={{ flex:1, textAlign:'center', fontFamily:"'Caveat'", fontSize:22, color:C.text, fontWeight:700 }}>
+        <div style={{ flex:1, fontFamily:"'Caveat'", fontSize:22, color:C.text, fontWeight:700 }}>
           🪵 Our Board
         </div>
-        <button onClick={toggleTheme} style={{ background:'none', border:`1px solid ${C.border}`, borderRadius:10, padding:'5px 10px', cursor:'pointer', fontSize:13, color:C.textMid, fontFamily:'inherit', fontWeight:700 }}>{mode==='light'?'🌙':'☀️'}</button>
       </header>
 
       {!isLinked && (
@@ -183,7 +179,7 @@ export default function BoardPage() {
           <div style={{ fontSize:52, marginBottom:16 }}>🪵</div>
           <div style={{ fontFamily:"'Caveat'", fontSize:26, color:C.text, marginBottom:8 }}>Your shared board</div>
           <p style={{ fontSize:14, color:C.textMid, maxWidth:300, lineHeight:1.7, marginBottom:24 }}>Connect with your partner to start decorating your board together.</p>
-          <button onClick={()=>navigate('/connect')} style={{ background:C.peach, color:'#fff', border:'none', borderRadius:14, padding:'12px 28px', fontSize:14, fontWeight:700, cursor:'pointer' }}>Connect now 💕</button>
+          <button onClick={()=>window.location.href='/connect'} style={{ background:C.peach, color:'#fff', border:'none', borderRadius:14, padding:'12px 28px', fontSize:14, fontWeight:700, cursor:'pointer' }}>Connect now 💕</button>
         </div>
       )}
 
