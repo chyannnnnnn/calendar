@@ -350,22 +350,18 @@ create policy "Owner can delete own events"
   on events for delete
   using (auth.uid() = owner_id);
 
--- Partner can read events: ONLY the direct partner in the same partnership row.
--- This prevents scenario where A-B and A-C both exist (which DB now blocks, but
--- belt-and-suspenders): C cannot read B's events even if A is in both.
+-- Partner can read events: viewer must be in the SAME single partnership row as the owner.
+-- Explicit join prevents any cross-partnership leakage.
 create policy "Partner can read events"
   on events for select
   using (
     exists (
       select 1 from partnerships p
-      where p.id = (
-        -- Find the ONE partnership that includes the current viewer
-        select p2.id from partnerships p2
-        where p2.user_a = auth.uid() or p2.user_b = auth.uid()
-        limit 1
-      )
-      and (
-        (p.user_a = auth.uid() and p.user_b = owner_id) or
+      where (
+        -- Viewer is user_a and owner is user_b
+        (p.user_a = auth.uid() and p.user_b = owner_id)
+        or
+        -- Viewer is user_b and owner is user_a
         (p.user_b = auth.uid() and p.user_a = owner_id)
       )
     )

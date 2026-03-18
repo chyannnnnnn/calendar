@@ -48,12 +48,16 @@ export function AuthProvider({ children }) {
       setProfile({ id: userId, name: user.user_metadata?.display_name || user.email, email: user.email, avatarUrl: null })
     }
 
-    // 2. Check for a partnership
-    const { data: partnership } = await supabase
+    // 2. Check for a partnership — fetch ALL rows for this user (should be 0 or 1)
+    // Using limit(1) instead of maybeSingle() so multiple corrupt rows don't silently return null
+    const { data: partnershipRows } = await supabase
       .from('partnerships')
       .select('*')
       .or(`user_a.eq.${userId},user_b.eq.${userId}`)
-      .maybeSingle()
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    const partnership = partnershipRows?.[0] || null
 
     if (partnership) {
       setPartnershipId(partnership.id)
@@ -113,22 +117,22 @@ export function AuthProvider({ children }) {
     if (found.id === myId) throw new Error("That's your own email!")
 
     // 2. Check YOU are not already in ANY partnership (either column)
-    const { data: myExisting } = await supabase
+    const { data: myRows } = await supabase
       .from('partnerships')
       .select('id')
       .or(`user_a.eq.${myId},user_b.eq.${myId}`)
-      .maybeSingle()
+      .limit(5)  // get up to 5 so we detect corrupt duplicate rows too
 
-    if (myExisting) throw new Error('You are already linked with a partner. Unlink first.')
+    if (myRows && myRows.length > 0) throw new Error('You are already linked with a partner. Unlink first.')
 
     // 3. Check the PARTNER is not already in ANY partnership (either column)
-    const { data: theirExisting } = await supabase
+    const { data: theirRows } = await supabase
       .from('partnerships')
       .select('id')
       .or(`user_a.eq.${found.id},user_b.eq.${found.id}`)
-      .maybeSingle()
+      .limit(5)
 
-    if (theirExisting) throw new Error(`${found.display_name || 'That person'} is already linked with someone else.`)
+    if (theirRows && theirRows.length > 0) throw new Error(`${found.display_name || 'That person'} is already linked with someone else.`)
 
     // 4. Insert — DB trigger will also enforce one-per-user as a safety net
     const { error: insertError } = await supabase
