@@ -337,18 +337,6 @@ export default function ProfilePage() {
                   </div>
                 )}
 
-                {/* Forgot password */}
-                <button onClick={sendResetEmail} style={{
-                  width:'100%',display:'flex',alignItems:'center',gap:10,
-                  padding:'14px 16px',background:'none',border:'none',cursor:'pointer',
-                  borderTop:`1px solid ${C.border}`,fontFamily:'inherit',
-                }}>
-                  <span style={{fontSize:18}}>✉️</span>
-                  <div style={{textAlign:'left'}}>
-                    <div style={{fontSize:13,fontWeight:700,color:C.text}}>Forgot password?</div>
-                    <div style={{fontSize:11,color:C.textDim}}>Send a reset link to {user?.email}</div>
-                  </div>
-                </button>
               </div>
             </>
           )}
